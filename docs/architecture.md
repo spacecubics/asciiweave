@@ -1,4 +1,4 @@
-# asciiweave architecture (Phase 4.1)
+# asciiweave architecture (Phase 4.2)
 
 Decisions that are not obvious from the code alone.
 
@@ -59,10 +59,34 @@ contact with document content is as opaque text, in two places:
   Seeding on the server instead of in each client means two browsers
   opening the same document cannot both insert the initial content — the
   client never bootstraps text itself.
-- **Flush**: when the last client leaves, `writeState` writes the room's
-  text back to SQLite. Clients still autosave over HTTP as in Phase 1;
-  the flush only narrows the window for losing final edits. One
-  authoritative collaborative store is Phase 4.3's job.
+- **Flush**: when the last client leaves, `writeState` persists the room.
+  Clients still autosave plain text over HTTP as in Phase 1; unifying the
+  stores into one authoritative one is Phase 4.3's job.
+
+## Durable CRDT state (Phase 4.2)
+
+The canonical Yjs document state is persisted in SQLite (`yjs_state`
+table) as an opaque encoded update, alongside — not replaced by — the
+plain-text `documents` table, which remains the user-facing
+representation. When y-websocket creates a room, `bindRoomState` restores
+it from the stored CRDT state; the plain-source seed is only the
+migration path for documents that predate CRDT persistence, and the
+stored CRDT state wins when both exist.
+
+Every room update re-persists the full encoded state, debounced by ~1s
+(documents are small; snapshotting beats an update log at this scale).
+That means durability does not depend on a graceful shutdown or on the
+last client leaving — the restart e2e test SIGKILLs the server
+mid-session and both clients reconverge on reconnect.
+
+**One yjs module instance, ever.** `y-websocket/bin/utils` is CommonJS
+and `require`s the CJS build of yjs; server code that manipulates room
+docs must load yjs through `createRequire` so it gets that same instance.
+Importing the ESM build alongside it puts structs from two class
+hierarchies into one document (the "Yjs was already imported" warning)
+and corrupts sync encoding — the symptom was clients silently diverging
+after a server restart, with one client applying a remote delete but
+losing the accompanying insert.
 
 ## Presence (Phase 4.1)
 

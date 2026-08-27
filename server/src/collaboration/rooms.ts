@@ -1,18 +1,31 @@
 import type { Server } from 'node:http'
+import { createRequire } from 'node:module'
 import { WebSocketServer } from 'ws'
 import { setPersistence, setupWSConnection } from 'y-websocket/bin/utils'
-import type * as Y from 'yjs'
+import type * as YTypes from 'yjs'
 import type { DocumentStore } from '../persistence/db'
 
+// Load yjs through require so this module shares the exact same module
+// instance as y-websocket/bin/utils (which is CommonJS). Mixing the ESM
+// and CJS builds puts structs from two different class hierarchies into
+// one document ("Yjs was already imported" warning), which corrupts
+// sync encoding — observed as clients silently diverging after a
+// server restart.
+const Y = createRequire(import.meta.url)('yjs') as typeof YTypes
+type YDoc = YTypes.Doc
+
 // The collaboration backend is AsciiDoc-agnostic: it relays Yjs document
-// updates and awareness messages per room. The asciiweave document ID is
-// the room name — there is no second collaboration ID.
+// updates and awareness messages per room, and touches document content
+// only as opaque text or encoded CRDT state. The asciiweave document ID
+// is the room name — there is no second collaboration ID.
 const COLLAB_PATH = /^\/collab\/([A-Za-z0-9_-]+)$/
+
+const PERSIST_DEBOUNCE_MS = 1000
 
 // Seed a freshly created room with the persisted source, exactly once.
 // Seeding on the server instead of in each client means two browsers
 // opening the same document cannot both insert the initial content.
-export function seedRoom(store: DocumentStore, docName: string, ydoc: Y.Doc): void {
+export function seedRoom(store: DocumentStore, docName: string, ydoc: YDoc): void {
   const doc = store.get(docName)
   if (!doc) {
     return
@@ -23,11 +36,41 @@ export function seedRoom(store: DocumentStore, docName: string, ydoc: Y.Doc): vo
   }
 }
 
-// Flush the room's current text back to the document store. Called by
-// y-websocket when the last client leaves a room; clients also autosave
-// over HTTP, so this only narrows the window for losing final edits.
-export function writeRoomState(store: DocumentStore, docName: string, ydoc: Y.Doc): void {
+// Persist the room's canonical CRDT state (and the plain-text
+// representation alongside it, until Phase 4.3 unifies the stores).
+// Rooms for IDs that are not documents are never persisted.
+export function persistRoom(store: DocumentStore, docName: string, ydoc: YDoc): void {
+  if (!store.get(docName)) {
+    return
+  }
+  store.setYjsState(docName, Y.encodeStateAsUpdate(ydoc))
   store.updateSource(docName, ydoc.getText('source').toString())
+}
+
+// Restore a room when y-websocket creates it. The durable Yjs state is
+// canonical; the plain-source seed is only the migration path for
+// documents that predate CRDT persistence. Afterwards, every room
+// update re-persists the state (debounced), so durability does not
+// depend on a graceful shutdown or on the last client leaving.
+export function bindRoomState(
+  store: DocumentStore,
+  docName: string,
+  ydoc: YDoc,
+  debounceMs: number = PERSIST_DEBOUNCE_MS,
+): void {
+  const stored = store.getYjsState(docName)
+  if (stored) {
+    Y.applyUpdate(ydoc, stored)
+  } else {
+    seedRoom(store, docName, ydoc)
+  }
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  ydoc.on('update', () => {
+    clearTimeout(timer)
+    timer = setTimeout(() => persistRoom(store, docName, ydoc), debounceMs)
+  })
+  ydoc.on('destroy', () => clearTimeout(timer))
 }
 
 export function setupCollaboration(httpServer: Server, store: DocumentStore): void {
@@ -35,8 +78,8 @@ export function setupCollaboration(httpServer: Server, store: DocumentStore): vo
     provider: null,
     // Both hooks must return promises: y-websocket chains .then() on
     // writeState's return value when the last client leaves a room.
-    bindState: async (docName, ydoc) => seedRoom(store, docName, ydoc),
-    writeState: async (docName, ydoc) => writeRoomState(store, docName, ydoc),
+    bindState: async (docName, ydoc) => bindRoomState(store, docName, ydoc),
+    writeState: async (docName, ydoc) => persistRoom(store, docName, ydoc),
   })
 
   const wss = new WebSocketServer({ noServer: true })

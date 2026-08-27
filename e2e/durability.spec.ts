@@ -152,6 +152,86 @@ test('a collaborative session survives a hard server restart', async ({ browser 
   await ctxB.close()
 })
 
+test('repeated hard restarts with edits between never diverge', async ({ browser }) => {
+  await startServer()
+  const ctxA = await browser.newContext()
+  const ctxB = await browser.newContext()
+  const pageA = await ctxA.newPage()
+  const url = await createDoc(pageA)
+  const pageB = await ctxB.newPage()
+  await pageB.goto(url)
+  await expect(pageB.locator('.cm-content')).toContainText('Untitled Document')
+
+  let accumulated = '= Torture\n'
+  for (let cycle = 1; cycle <= 3; cycle++) {
+    const writer = cycle % 2 === 0 ? pageA : pageB
+    accumulated += `\nline from cycle ${cycle}`
+    await replaceAll(writer, accumulated)
+    await waitForPersist(writer, `cycle ${cycle}`)
+
+    await killServer()
+    await startServer()
+
+    for (const page of [pageA, pageB]) {
+      await expect.poll(() => getText(page), { timeout: 15_000 }).toBe(accumulated)
+    }
+  }
+  await ctxA.close()
+  await ctxB.close()
+})
+
+test('a kill during active typing loses nothing while a client stays open', async ({ browser }) => {
+  await startServer()
+  const ctx = await browser.newContext()
+  const page = await ctx.newPage()
+  const url = await createDoc(page)
+
+  // Type and kill immediately — well inside the 1s persist debounce, so
+  // the snapshot on disk is stale. The client's own Yjs doc holds the
+  // full history and must re-sync it into the rebuilt room on reconnect.
+  await replaceAll(page, '= Mid Flight\n\nnot yet persisted when the server died')
+  await killServer()
+  await startServer()
+
+  await expect
+    .poll(() => getText(page), { timeout: 15_000 })
+    .toContain('not yet persisted when the server died')
+  await waitForPersist(page, 'not yet persisted when the server died')
+
+  // A second browser arriving later sees the recovered content too.
+  const late = await (await browser.newContext()).newPage()
+  await late.goto(url)
+  await expect(late.locator('.cm-content')).toContainText('not yet persisted when the server died')
+  await late.context().close()
+  await ctx.close()
+})
+
+test('a legacy document without CRDT state migrates on first open', async ({ browser }) => {
+  await startServer()
+  const res = await fetch(`${BASE}/api/documents`, { method: 'POST' })
+  const { id } = (await res.json()) as { id: string }
+
+  // Rewrite the database into the pre-4.2 shape: plain text only.
+  await killServer()
+  const db = new DatabaseSync(dbPath)
+  db.prepare('DELETE FROM yjs_state WHERE id = ?').run(id)
+  db.prepare('UPDATE documents SET source = ? WHERE id = ?').run(
+    '= Legacy Document\n\ncreated before CRDT persistence\n',
+    id,
+  )
+  db.close()
+  await startServer()
+
+  const page = await (await browser.newContext()).newPage()
+  await page.goto(`${BASE}/doc/${id}`)
+  await expect(page.locator('.cm-content')).toContainText('created before CRDT persistence')
+
+  // Editing the migrated document persists CRDT state from now on.
+  await replaceAll(page, '= Legacy Document\n\nmigrated and edited\n')
+  await waitForPersist(page, 'migrated and edited')
+  await page.context().close()
+})
+
 test('durable state does not depend on a browser staying open', async ({ browser }) => {
   await startServer()
   const ctx = await browser.newContext()

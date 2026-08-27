@@ -1,17 +1,10 @@
 import type { Server } from 'node:http'
-import { createRequire } from 'node:module'
 import { WebSocketServer } from 'ws'
 import { setPersistence, setupWSConnection } from 'y-websocket/bin/utils'
 import type * as YTypes from 'yjs'
+import { Y } from './state'
 import type { DocumentStore } from '../persistence/db'
 
-// Load yjs through require so this module shares the exact same module
-// instance as y-websocket/bin/utils (which is CommonJS). Mixing the ESM
-// and CJS builds puts structs from two different class hierarchies into
-// one document ("Yjs was already imported" warning), which corrupts
-// sync encoding — observed as clients silently diverging after a
-// server restart.
-const Y = createRequire(import.meta.url)('yjs') as typeof YTypes
 type YDoc = YTypes.Doc
 
 // The collaboration backend is AsciiDoc-agnostic: it relays Yjs document

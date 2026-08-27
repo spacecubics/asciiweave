@@ -1,23 +1,48 @@
-import { basicSetup, EditorView } from 'codemirror'
+import { defaultKeymap } from '@codemirror/commands'
+import { highlightSelectionMatches, searchKeymap } from '@codemirror/search'
+import { EditorState } from '@codemirror/state'
+import {
+  EditorView,
+  crosshairCursor,
+  drawSelection,
+  dropCursor,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  highlightSpecialChars,
+  keymap,
+  lineNumbers,
+  rectangularSelection,
+} from '@codemirror/view'
+import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next'
+import type * as Y from 'yjs'
 
-// basicSetup provides line numbers, history (undo/redo), and search.
-// No AsciiDoc syntax highlighting in Phase 1, per the project instructions.
+// The extension list is assembled by hand instead of using basicSetup:
+// basicSetup bundles CodeMirror's own history, and there must be exactly
+// one undo system — the Yjs-aware one (yUndoManagerKeymap + yCollab).
+// No AsciiDoc syntax highlighting in Phase 1/2, per the project
+// instructions.
 export function createEditor(
   container: HTMLElement,
-  initialSource: string,
-  onChange: (source: string) => void,
+  ytext: Y.Text,
+  undoManager: Y.UndoManager,
 ): EditorView {
   return new EditorView({
     parent: container,
-    doc: initialSource,
+    doc: ytext.toString(),
     extensions: [
-      basicSetup,
+      lineNumbers(),
+      highlightActiveLineGutter(),
+      highlightSpecialChars(),
+      drawSelection(),
+      dropCursor(),
+      EditorState.allowMultipleSelections.of(true),
+      rectangularSelection(),
+      crosshairCursor(),
+      highlightActiveLine(),
+      highlightSelectionMatches(),
       EditorView.lineWrapping,
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged) {
-          onChange(update.state.doc.toString())
-        }
-      }),
+      keymap.of([...yUndoManagerKeymap, ...defaultKeymap, ...searchKeymap]),
+      yCollab(ytext, null, { undoManager }),
     ],
   })
 }

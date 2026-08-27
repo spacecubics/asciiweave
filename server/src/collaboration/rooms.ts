@@ -70,7 +70,15 @@ export function bindRoomState(
   let timer: ReturnType<typeof setTimeout> | undefined
   ydoc.on('update', () => {
     clearTimeout(timer)
-    timer = setTimeout(() => persistRoom(store, docName, ydoc), debounceMs)
+    timer = setTimeout(() => {
+      // A failed write (disk full, closed store) must not crash the
+      // process from inside a timer; the next update retries anyway.
+      try {
+        persistRoom(store, docName, ydoc)
+      } catch (error) {
+        console.error(`failed to persist room ${docName}:`, error)
+      }
+    }, debounceMs)
   })
   ydoc.on('destroy', () => clearTimeout(timer))
 }

@@ -1,6 +1,6 @@
 import type { Server } from 'node:http'
 import { WebSocketServer } from 'ws'
-import { setPersistence, setupWSConnection } from 'y-websocket/bin/utils'
+import { docs, setPersistence, setupWSConnection } from 'y-websocket/bin/utils'
 import type * as YTypes from 'yjs'
 import { Y } from './state'
 import type { DocumentStore } from '../persistence/db'
@@ -81,6 +81,13 @@ export function bindRoomState(
     }, debounceMs)
   })
   ydoc.on('destroy', () => clearTimeout(timer))
+}
+
+// Current text of a live in-memory room, if one is open for this
+// document. Fresher than the debounced persisted state by up to the
+// debounce interval, so API reads prefer it.
+export function getActiveRoomSource(docName: string): string | undefined {
+  return docs.get(docName)?.getText('source').toString()
 }
 
 export function setupCollaboration(httpServer: Server, store: DocumentStore): void {

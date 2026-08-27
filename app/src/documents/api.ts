@@ -24,19 +24,3 @@ export async function fetchDocument(id: string): Promise<DocumentData | null> {
   }
   return (await res.json()) as DocumentData
 }
-
-export async function saveDocument(
-  id: string,
-  source: string,
-  options: { keepalive?: boolean } = {},
-): Promise<void> {
-  const res = await fetch(`/api/documents/${encodeURIComponent(id)}`, {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ source }),
-    keepalive: options.keepalive ?? false,
-  })
-  if (!res.ok) {
-    throw new Error(`failed to save document: ${res.status}`)
-  }
-}

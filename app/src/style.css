@@ -82,12 +82,12 @@ body {
   width: 9rem;
 }
 
-.save-state {
+.sync-state {
   font-size: 0.85rem;
   color: #57606a;
 }
 
-.save-state[data-state='error'] {
+.sync-state[data-state='offline'] {
   color: #cf222e;
 }
 

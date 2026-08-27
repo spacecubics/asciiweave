@@ -1,4 +1,4 @@
-# asciiweave architecture (Phase 2)
+# asciiweave architecture (Phase 3)
 
 Decisions that are not obvious from the code alone.
 
@@ -7,38 +7,62 @@ Decisions that are not obvious from the code alone.
 ```
 POST /api/documents  ->  random ID  ->  /doc/<id>
                                           |
-                                        Y.Doc
-                                          |
-                                        Y.Text
-                                        /    \
-                                       /      \
-                                CodeMirror 6   Asciidoctor.js
-                                                    |
-                              debounced PUT    sandboxed iframe
-                                   |
-                            SQLite (node:sqlite)
+   browser A                              |                    browser B
+     Y.Doc  <---- ws://…/collab/<id> ---- + ---- ws://… ---->    Y.Doc
+       |               (Yjs room)                                  |
+     Y.Text                                                     Y.Text
+     /    \                                                     /    \
+CodeMirror  Asciidoctor.js                             CodeMirror  Asciidoctor.js
+                 |                                                      |
+debounced PUT   sandboxed iframe                        debounced PUT  sandboxed iframe
+      |
+SQLite (node:sqlite)
 ```
 
 The AsciiDoc source string is the canonical document. Rendered HTML is
-derived, disposable state and is never persisted or sent to the server.
+derived, disposable state: every browser converts its own synchronized
+`Y.Text` locally, and HTML is never persisted or transmitted.
 
-## Yjs document model (Phase 2)
+## Yjs document model
 
 The live source in the browser is a `Y.Text` (`ydoc.getText('source')`),
 bound to CodeMirror 6 with `y-codemirror.next`'s `yCollab` — there is no
 second canonical copy in any store or editor model. The preview and the
 autosaver subscribe to the `Y.Text` observer, so they react identically to
-keystrokes and to programmatic Yjs transactions. There is intentionally no
-network provider yet: the `Y.Doc` lives only in the open tab, and the
-server still persists plain AsciiDoc text as in Phase 1.
+keystrokes, programmatic transactions, and remote collaborators' edits.
 
-Two ordering details matter in `app/src/documents/ydoc.ts`:
+The `Y.UndoManager` does not track the provider's transaction origin, so
+undo reverts only this user's own edits — never remote edits or the
+content loaded from the server.
 
-- The persisted source is inserted into the `Y.Text` once, guarded by an
-  emptiness check (`initializeSource`), so bootstrapping can never
-  duplicate content.
-- The `Y.UndoManager` is created after that insert, so undo can remove
-  user edits but never the loaded document.
+## Collaboration transport (Phase 3)
+
+The asciiweave document ID is the Yjs room name: `/doc/<id>` collaborates
+through `ws://…/collab/<id>`. There is no second collaboration ID.
+
+Both ends use `y-websocket 1.5.4`, pinned exactly: it is the stable Yjs
+v13-compatible generation that ships the client provider and the proven
+server (`y-websocket/bin/utils`) in one mutually compatible package. The
+newer client-only y-websocket releases pair with `@y/websocket-server`,
+which is built on the Yjs v14 development line that the project
+instructions say not to mix in. Two traps in `bin/utils` worth knowing:
+the persistence hooks must return promises (it chains `.then()` on
+`writeState`, and a synchronous function crashes the process on
+disconnect), and rooms are destroyed when their last client leaves.
+
+The collaboration server (`server/src/collaboration/rooms.ts`) is
+AsciiDoc-agnostic: it relays Yjs updates and awareness per room. Its only
+contact with document content is as opaque text, in two places:
+
+- **Seeding**: when a room is created, `bindState` inserts the persisted
+  source into the room's `Y.Text` (guarded by an emptiness check).
+  Seeding on the server instead of in each client means two browsers
+  opening the same document cannot both insert the initial content — the
+  client never bootstraps text itself.
+- **Flush**: when the last client leaves, `writeState` writes the room's
+  text back to SQLite. Clients still autosave over HTTP as in Phase 1;
+  the flush only narrows the window for losing final edits. One
+  authoritative collaborative store is Phase 4.3's job.
 
 The editor assembles its extensions by hand instead of using CodeMirror's
 `basicSetup`, because `basicSetup` bundles CodeMirror's own history and

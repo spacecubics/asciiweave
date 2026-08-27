@@ -28,13 +28,16 @@
     "@codemirror/view": "6.43.9",
     "@hono/node-server": "2.1.1",
     "hono": "4.13.5",
+    "ws": "8.21.3",
     "y-codemirror.next": "0.3.6",
+    "y-websocket": "1.5.4",
     "yjs": "13.6.32"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.62.1",
     "@types/node": "26.4.0",
+    "@types/ws": "8.18.1",
     "concurrently": "10.0.5",
     "eslint": "10.9.1",
     "prettier": "3.9.6",

@@ -52,9 +52,18 @@ export function bindRoomState(
   debounceMs: number = PERSIST_DEBOUNCE_MS,
 ): void {
   const stored = store.getYjsState(docName)
+  let restored = false
   if (stored) {
-    Y.applyUpdate(ydoc, stored)
-  } else {
+    try {
+      Y.applyUpdate(ydoc, stored)
+      restored = true
+    } catch (error) {
+      // A corrupt blob must never take the document down with it: fall
+      // back to the plain-text representation and re-persist from there.
+      console.error(`corrupt Yjs state for ${docName}, falling back to plain source:`, error)
+    }
+  }
+  if (!restored) {
     seedRoom(store, docName, ydoc)
   }
 

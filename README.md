@@ -1,82 +1,65 @@
-# A Template Repository for Space Cubics
+# asciiweave
 
-This repository serves as a template for Space Cubics. You can use it
-when creating a new repository. You can add, remove, or modify the
-settings to fit your project.
+A HackMD-like collaborative web editor for AsciiDoc. Create a document, get a
+stable shareable URL, edit AsciiDoc source in CodeMirror 6 on the left, and see
+the live Asciidoctor.js preview on the right. When the document is ready, copy
+the plain `.adoc` source into your own Git repository — Git integration is
+intentionally not part of asciiweave.
 
-## Codespell
+This is **Phase 1**: a single-user editor with URL-based documents and
+automatic persistence. Real-time collaboration (Yjs) arrives in later phases;
+see `asciiweave-ai-agent-instructions.md` for the roadmap.
 
-https://github.com/codespell-project/codespell
+## Requirements
 
-Codespell is a tool for fixing common misspellings in text files. You
-can add project-specific words to `.codespell-ignore` so that
-codespell will ignore them.
+- Node.js >= 24 (uses the built-in `node:sqlite`; it prints an
+  `ExperimentalWarning`, which is expected)
 
-## gitlint
+## Development
 
-https://github.com/jorisroovers/gitlint
-
-gitlint is a linter for git commit messages. In our configuration,
-gitlint checks all commits in a given pull request.
-
-Special care is taken for lines that start with common Signed-off-by
-lines or HTTPS references. See `.gitlint` for more details.
-
-## linelint
-
-https://github.com/fernandrone/linelint
-
-linelint is a linter that checks for a trailing newline at the end of
-a file. In C, a source file without a final newline is not valid.
-This may not suit every repository or programming language, so remove
-it if you do not need it.
-
-## Dependabot
-
-https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configuring-dependabot-version-updates
-
-`.github/dependabot.yml` configures GitHub Dependabot. This template
-only defines updates for GitHub Actions. If you use other ecosystems
-such as Python, Node.js, Rust, or others, please customize it.
-
-## .gitignore
-
-`.gitignore` specifies intentionally untracked files that Git should
-ignore. The contents of this file may vary from project to project,
-but you probably already know what to put here.
-
-## .editorconfig
-
-`.editorconfig` defines basic coding style settings for the project.
-Many editors, such as Emacs, Vim, and Visual Studio Code, support it.
-
-## CODEOWNERS
-
-https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
-
-This template includes a `CODEOWNERS` file as a starting point.
-
-When you create a new repository from this template, review the copied
-`CODEOWNERS` file and replace the example entries with the actual
-maintainers for that repository.
-
-After updating the file, remove any unused comments and example lines.
-Keep the file as simple as possible so that it reflects the actual
-ownership rules for the repository.
-
-`CODEOWNERS` entries consist of a path pattern followed by one or more
-owners. Owners can be GitHub usernames or Space Cubics teams.
-
-Example:
-
-```text
-*                      @yashi
-/src/                  @spacecubics/software
-/fpga/                 @spacecubics/fpga
+```sh
+npm install
+npm run dev
 ```
 
-Notes:
+`npm run dev` starts the API server on <http://localhost:8787> and the Vite
+dev server on <http://localhost:5173> (open the Vite URL; it proxies `/api`).
 
-- Owners must have write access to the repository.
-- Teams must be visible in the organization and have write access to the repository.
-- If you want multiple owners for the same pattern, put them on the same line.
+## Production build
+
+```sh
+npm run build
+npm start
+```
+
+`npm start` serves the built app and the API on <http://localhost:8787>.
+
+Configuration via environment variables:
+
+| Variable        | Default              | Meaning                  |
+| --------------- | -------------------- | ------------------------ |
+| `PORT`          | `8787`               | HTTP port                |
+| `ASCIIWEAVE_DB` | `data/asciiweave.db` | SQLite database location |
+
+## Tests and checks
+
+```sh
+npm test            # Vitest: API, persistence, render scheduler, autosave
+npm run test:e2e    # Playwright: real-browser end-to-end tests
+npm run typecheck   # tsc --noEmit
+npm run lint        # ESLint
+npm run format      # Prettier
+```
+
+The Playwright suite builds the app and starts a production-mode server on a
+temporary database automatically. Run `npx playwright install chromium` once
+before the first e2e run.
+
+## Layout
+
+```
+app/     browser application (CodeMirror editor, Asciidoctor preview)
+server/  HTTP API and SQLite persistence
+e2e/     Playwright end-to-end tests
+docs/    architecture notes
+```

@@ -41,13 +41,17 @@ test('programmatic Y.Text changes appear in the editor and the preview', async (
   await expect(preview.locator('body')).toContainText('injected via a Yjs transaction')
 })
 
-test('programmatic Y.Text changes are autosaved like typed ones', async ({ page }) => {
+test('programmatic Y.Text changes persist server-side like typed ones', async ({ page }) => {
   await createDoc(page)
-  const saved = page.waitForResponse(
-    (res) => res.url().includes('/api/documents/') && res.request().method() === 'PUT' && res.ok(),
-  )
   await setSourceViaYjs(page, '= Yjs Origin\n\npersisted without keyboard input')
-  await saved
+
+  const id = new URL(page.url()).pathname.split('/').pop()!
+  await expect
+    .poll(async () => {
+      const res = await page.request.get(`/api/documents/${id}`)
+      return ((await res.json()) as { source: string }).source
+    })
+    .toContain('persisted without keyboard input')
 
   await page.reload()
   await expect(page.locator('.cm-content')).toContainText('persisted without keyboard input')

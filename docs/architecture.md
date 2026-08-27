@@ -1,4 +1,4 @@
-# asciiweave architecture (Phase 4.2)
+# asciiweave architecture (Phase 4.3)
 
 Decisions that are not obvious from the code alone.
 
@@ -60,8 +60,6 @@ contact with document content is as opaque text, in two places:
   opening the same document cannot both insert the initial content — the
   client never bootstraps text itself.
 - **Flush**: when the last client leaves, `writeState` persists the room.
-  Clients still autosave plain text over HTTP as in Phase 1; unifying the
-  stores into one authoritative one is Phase 4.3's job.
 
 ## Durable CRDT state (Phase 4.2)
 
@@ -81,12 +79,48 @@ mid-session and both clients reconverge on reconnect.
 
 **One yjs module instance, ever.** `y-websocket/bin/utils` is CommonJS
 and `require`s the CJS build of yjs; server code that manipulates room
-docs must load yjs through `createRequire` so it gets that same instance.
-Importing the ESM build alongside it puts structs from two class
-hierarchies into one document (the "Yjs was already imported" warning)
-and corrupts sync encoding — the symptom was clients silently diverging
-after a server restart, with one client applying a remote delete but
-losing the accompanying insert.
+docs must load yjs through `createRequire` so it gets that same instance
+(`server/src/collaboration/state.ts` exports it). Importing the ESM
+build alongside it puts structs from two class hierarchies into one
+document (the "Yjs was already imported" warning) and corrupts sync
+encoding — the symptom was clients silently diverging after a server
+restart, with one client applying a remote delete but losing the
+accompanying insert.
+
+Persistence is hardened against faults: a corrupt or truncated state
+blob falls back to the plain-text representation and is healed by the
+next persist, and failures inside the persistence hooks or the debounce
+timer are contained (a rejected `writeState` promise inside y-websocket
+would otherwise crash the whole process as an unhandled rejection).
+`server/tests/durability.test.ts` fuzzes this layer with seeded random
+mixed-script edits, restore chains, and multi-peer divergence;
+`e2e/durability.spec.ts` SIGKILLs a real server repeatedly, mid-typing,
+and against a pre-CRDT legacy database.
+
+## One authoritative store (Phase 4.3)
+
+The durable Yjs state is the single authoritative document store, and
+the collaboration path is its only writer. The Phase 1 client-side HTTP
+autosave (`PUT /api/documents/:id`) is gone — it was a second,
+competing writer that could diverge from the collaborative state. New
+documents get CRDT state at creation time (`POST` encodes the template
+into `yjs_state`), so plain-text seeding now only serves databases from
+before CRDT persistence.
+
+Plain AsciiDoc is derived data, resolved in freshness order: live room
+text (if a room is open), else decoded `yjs_state`, else the legacy
+`documents.source` row. `GET /api/documents/:id` returns it, and
+`GET /api/documents/:id/source` serves it as a `text/plain` `.adoc`
+download for committing to Git. The `documents.source` column survives
+only as a derived cache written by `persistRoom` — same write, same
+content, no second truth.
+
+The topbar indicator now reflects the collaboration connection
+(`Synced / Connecting… / Offline`) instead of HTTP save state: while
+synced, edits reach the server in real time and the server persists
+them. The accepted trade-off is that edits made while offline live only
+in the open tab until reconnect (a local persistence layer such as
+y-indexeddb would close that gap and can come later).
 
 ## Presence (Phase 4.1)
 

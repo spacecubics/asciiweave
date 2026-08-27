@@ -8,8 +8,7 @@ import {
   type UserInfo,
 } from './collaboration/presence'
 import { connectCollaboration } from './collaboration/provider'
-import { createDocument, fetchDocument, saveDocument } from './documents/api'
-import { createAutosaver } from './documents/save'
+import { createDocument, fetchDocument } from './documents/api'
 import { createLocalDocument, type LocalDocument } from './documents/ydoc'
 import { createEditor } from './editor/editor'
 import { createPreview } from './preview/preview'
@@ -87,7 +86,7 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
         <span id="user-list" class="user-list" aria-label="Connected users"></span>
         <input id="user-name" class="user-name" maxlength="24" aria-label="Your display name" />
       </div>
-      <span id="save-state" class="save-state" data-state="saved">Saved</span>
+      <span id="sync-state" class="sync-state" data-state="connecting">Connecting…</span>
     </header>
     <main class="panes">
       <section id="source-pane" class="pane" aria-label="AsciiDoc source"></section>
@@ -96,34 +95,37 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
   `
   const sourcePane = container.querySelector<HTMLElement>('#source-pane')
   const previewPane = container.querySelector<HTMLElement>('#preview-pane')
-  const saveState = container.querySelector<HTMLElement>('#save-state')
+  const syncState = container.querySelector<HTMLElement>('#sync-state')
   const userList = container.querySelector<HTMLElement>('#user-list')
   const userName = container.querySelector<HTMLInputElement>('#user-name')
-  if (!sourcePane || !previewPane || !saveState || !userList || !userName) {
+  if (!sourcePane || !previewPane || !syncState || !userList || !userName) {
     return
   }
 
   const preview = createPreview(previewPane)
-  const autosaver = createAutosaver(
-    (source) => saveDocument(id, source),
-    (state) => {
-      saveState.dataset.state = state
-      saveState.textContent =
-        state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : 'Save failed (retrying)'
-    },
-  )
 
   // The Y.Text is the live canonical source, synchronized with other
-  // browsers on the same document URL. Preview and autosave follow it
-  // through its observer, so they do not care whether a change came from
-  // CodeMirror, a programmatic transaction, or a remote collaborator.
-  // Each browser renders its own preview locally; HTML is never shared.
+  // browsers on the same document URL. Preview follows it through its
+  // observer, so it does not care whether a change came from CodeMirror,
+  // a programmatic transaction, or a remote collaborator. Each browser
+  // renders its own preview locally; HTML is never shared. Persistence
+  // happens on the server from the collaborative state — there is no
+  // client-side save path anymore.
   const local = createLocalDocument()
   const provider = connectCollaboration(local.ydoc, id)
-  local.onSourceChange((source) => {
-    preview.update(source)
-    autosaver.update(source)
-  })
+  local.onSourceChange((source) => preview.update(source))
+
+  // The indicator reflects the collaboration connection: while synced,
+  // edits reach the server (which persists them) in real time.
+  const renderSyncState = () => {
+    const state = provider.wsconnected ? (provider.synced ? 'synced' : 'connecting') : 'offline'
+    syncState.dataset.state = state
+    syncState.textContent =
+      state === 'synced' ? 'Synced' : state === 'connecting' ? 'Connecting…' : 'Offline'
+  }
+  provider.on('status', renderSyncState)
+  provider.on('sync', renderSyncState)
+  renderSyncState()
 
   // Presence is ephemeral Yjs Awareness state: name, color, cursor, and
   // online status never become part of the document or its persistence.
@@ -163,12 +165,4 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
   createEditor(sourcePane, local.ytext, local.undoManager, provider.awareness)
   preview.renderNow(local.ytext.toString())
   window.__asciiweave = { ydoc: local.ydoc, ytext: local.ytext, provider }
-
-  // Best-effort flush of unsaved edits when the tab is closed or hidden.
-  window.addEventListener('pagehide', () => {
-    const pending = autosaver.pendingSource()
-    if (pending !== null) {
-      void saveDocument(id, pending, { keepalive: true }).catch(() => {})
-    }
-  })
 }

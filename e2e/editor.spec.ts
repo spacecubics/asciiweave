@@ -17,10 +17,17 @@ async function replaceSource(page: Page, source: string): Promise<void> {
   await page.keyboard.insertText(source)
 }
 
-function waitForSave(page: Page): Promise<unknown> {
-  return page.waitForResponse(
-    (res) => res.url().includes('/api/documents/') && res.request().method() === 'PUT' && res.ok(),
-  )
+// There is no client-side save anymore: edits reach the server through
+// the collaboration socket and the API serves source derived from the
+// collaborative state. Wait until that derived source shows the marker.
+async function waitForRemoteSource(page: Page, marker: string): Promise<void> {
+  const id = new URL(page.url()).pathname.split('/').pop()!
+  await expect
+    .poll(async () => {
+      const res = await page.request.get(`/api/documents/${id}`)
+      return ((await res.json()) as { source: string }).source
+    })
+    .toContain(marker)
 }
 
 test('creating a document from / navigates to a stable /doc/<id> URL', async ({ page }) => {
@@ -41,12 +48,11 @@ test('editing the source updates the rendered preview', async ({ page }) => {
   await expect(preview.locator('strong')).toHaveText('asciiweave')
 })
 
-test('edits are autosaved and survive a reload', async ({ page }) => {
+test('edits reach the server automatically and survive a reload', async ({ page }) => {
   await createDoc(page)
-  const saved = waitForSave(page)
   await replaceSource(page, '= Saved Title\n\nThis line must persist.')
-  await saved
-  await expect(page.locator('#save-state')).toHaveText('Saved')
+  await waitForRemoteSource(page, 'This line must persist.')
+  await expect(page.locator('#sync-state')).toHaveText('Synced')
 
   await page.reload()
   await expect(page.locator('.cm-content')).toContainText('This line must persist.')
@@ -54,9 +60,8 @@ test('edits are autosaved and survive a reload', async ({ page }) => {
 
 test('two documents remain isolated', async ({ page }) => {
   const urlA = await createDoc(page)
-  const saved = waitForSave(page)
   await replaceSource(page, 'content only for document A')
-  await saved
+  await waitForRemoteSource(page, 'content only for document A')
 
   const urlB = await createDoc(page)
   expect(urlB).not.toBe(urlA)
@@ -69,9 +74,8 @@ test('two documents remain isolated', async ({ page }) => {
 
 test('Japanese text is preserved through save and reload', async ({ page }) => {
   await createDoc(page)
-  const saved = waitForSave(page)
   await replaceSource(page, '= 日本語の文書\n\nこんにちは、世界。絵文字 🌸 も動きます。')
-  await saved
+  await waitForRemoteSource(page, 'こんにちは、世界。')
 
   await page.reload()
   await expect(page.locator('.cm-content')).toContainText(

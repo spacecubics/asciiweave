@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { createApp } from './app'
-import { setupCollaboration } from './collaboration/rooms'
+import { getActiveRoomSource, setupCollaboration } from './collaboration/rooms'
 import { openStore } from './persistence/db'
 
 const port = Number(process.env.PORT ?? 8787)
@@ -12,7 +12,7 @@ const dbPath = process.env.ASCIIWEAVE_DB ?? 'data/asciiweave.db'
 const appDist = 'app/dist'
 
 const store = openStore(dbPath)
-const app = createApp(store)
+const app = createApp(store, getActiveRoomSource)
 
 // Serve the built browser app when it exists (production / e2e). During
 // development Vite serves the app instead and proxies /api here.

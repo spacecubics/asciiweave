@@ -87,9 +87,23 @@ export function setupCollaboration(httpServer: Server, store: DocumentStore): vo
   setPersistence({
     provider: null,
     // Both hooks must return promises: y-websocket chains .then() on
-    // writeState's return value when the last client leaves a room.
-    bindState: async (docName, ydoc) => bindRoomState(store, docName, ydoc),
-    writeState: async (docName, ydoc) => persistRoom(store, docName, ydoc),
+    // writeState's return value when the last client leaves a room —
+    // and a rejected promise there is an unhandled rejection that would
+    // bring the whole process down, so failures stay inside the hook.
+    bindState: async (docName, ydoc) => {
+      try {
+        bindRoomState(store, docName, ydoc)
+      } catch (error) {
+        console.error(`failed to bind room ${docName}:`, error)
+      }
+    },
+    writeState: async (docName, ydoc) => {
+      try {
+        persistRoom(store, docName, ydoc)
+      } catch (error) {
+        console.error(`failed to write room state ${docName}:`, error)
+      }
+    },
   })
 
   const wss = new WebSocketServer({ noServer: true })

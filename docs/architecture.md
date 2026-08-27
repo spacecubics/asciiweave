@@ -1,4 +1,4 @@
-# asciiweave architecture (Phase 1)
+# asciiweave architecture (Phase 2)
 
 Decisions that are not obvious from the code alone.
 
@@ -7,17 +7,45 @@ Decisions that are not obvious from the code alone.
 ```
 POST /api/documents  ->  random ID  ->  /doc/<id>
                                           |
-                              +-----------+-----------+
-                              |                       |
-                        CodeMirror 6           Asciidoctor.js
-                              |                       |
-                     debounced PUT /api        sandboxed iframe
-                              |
-                        SQLite (node:sqlite)
+                                        Y.Doc
+                                          |
+                                        Y.Text
+                                        /    \
+                                       /      \
+                                CodeMirror 6   Asciidoctor.js
+                                                    |
+                              debounced PUT    sandboxed iframe
+                                   |
+                            SQLite (node:sqlite)
 ```
 
 The AsciiDoc source string is the canonical document. Rendered HTML is
 derived, disposable state and is never persisted or sent to the server.
+
+## Yjs document model (Phase 2)
+
+The live source in the browser is a `Y.Text` (`ydoc.getText('source')`),
+bound to CodeMirror 6 with `y-codemirror.next`'s `yCollab` — there is no
+second canonical copy in any store or editor model. The preview and the
+autosaver subscribe to the `Y.Text` observer, so they react identically to
+keystrokes and to programmatic Yjs transactions. There is intentionally no
+network provider yet: the `Y.Doc` lives only in the open tab, and the
+server still persists plain AsciiDoc text as in Phase 1.
+
+Two ordering details matter in `app/src/documents/ydoc.ts`:
+
+- The persisted source is inserted into the `Y.Text` once, guarded by an
+  emptiness check (`initializeSource`), so bootstrapping can never
+  duplicate content.
+- The `Y.UndoManager` is created after that insert, so undo can remove
+  user edits but never the loaded document.
+
+The editor assembles its extensions by hand instead of using CodeMirror's
+`basicSetup`, because `basicSetup` bundles CodeMirror's own history and
+there must be exactly one undo system — the Yjs-aware one
+(`yUndoManagerKeymap`). `main.ts` exposes `window.__asciiweave` as a test
+hook so integration tests can apply Yjs transactions from outside the
+editor and verify convergence.
 
 ## Document IDs
 

@@ -53,6 +53,23 @@ describe('document store', () => {
     second.close()
   })
 
+  it('round-trips Yjs state blobs and survives a reopen', () => {
+    const path = join(dir, 'yjs.db')
+    const first = openStore(path)
+    expect(first.getYjsState('abc')).toBeUndefined()
+    const state = new Uint8Array([1, 2, 3, 0, 255, 128])
+    first.setYjsState('abc', state)
+    expect(first.getYjsState('abc')).toEqual(state)
+
+    // Overwrites replace, and blobs survive a close/reopen (restart).
+    const updated = new Uint8Array([9, 8, 7])
+    first.setYjsState('abc', updated)
+    first.close()
+    const second = openStore(path)
+    expect(second.getYjsState('abc')).toEqual(updated)
+    second.close()
+  })
+
   it('round-trips Japanese and general Unicode exactly', () => {
     const source = '= 日本語のタイトル\n\nこんにちは、世界。🎉 café naïve — combining: がぎぐ゙\n'
     store.create('jp', source)

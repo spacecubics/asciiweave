@@ -1,0 +1,6 @@
+asciiweave-ai-agent-instructions.md
+app/dist/
+app/src/preview/asciidoctor.css
+package-lock.json
+test-results/
+playwright-report/

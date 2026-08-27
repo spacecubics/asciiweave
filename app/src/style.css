@@ -38,6 +38,50 @@ body {
   text-decoration: none;
 }
 
+.presence {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.user-list {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: #57606a;
+  white-space: nowrap;
+}
+
+.user-chip::before {
+  content: '';
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--user-color, #808080);
+  flex: none;
+}
+
+.user-chip-local {
+  font-weight: 600;
+}
+
+.user-name {
+  font-size: 0.85rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid #d0d7de;
+  border-radius: 4px;
+  width: 9rem;
+}
+
 .save-state {
   font-size: 0.85rem;
   color: #57606a;

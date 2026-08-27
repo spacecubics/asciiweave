@@ -14,6 +14,7 @@ import {
   rectangularSelection,
 } from '@codemirror/view'
 import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next'
+import type { Awareness } from 'y-protocols/awareness'
 import type * as Y from 'yjs'
 
 // The extension list is assembled by hand instead of using basicSetup:
@@ -25,6 +26,7 @@ export function createEditor(
   container: HTMLElement,
   ytext: Y.Text,
   undoManager: Y.UndoManager,
+  awareness: Awareness,
 ): EditorView {
   return new EditorView({
     parent: container,
@@ -42,7 +44,9 @@ export function createEditor(
       highlightSelectionMatches(),
       EditorView.lineWrapping,
       keymap.of([...yUndoManagerKeymap, ...defaultKeymap, ...searchKeymap]),
-      yCollab(ytext, null, { undoManager }),
+      // Passing awareness enables remote cursors and selections, drawn
+      // from each collaborator's ephemeral `user` state (name + colors).
+      yCollab(ytext, awareness, { undoManager }),
     ],
   })
 }

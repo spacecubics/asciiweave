@@ -1,4 +1,4 @@
-# asciiweave architecture (Phase 3)
+# asciiweave architecture (Phase 4.1)
 
 Decisions that are not obvious from the code alone.
 
@@ -63,6 +63,24 @@ contact with document content is as opaque text, in two places:
   text back to SQLite. Clients still autosave over HTTP as in Phase 1;
   the flush only narrows the window for losing final edits. One
   authoritative collaborative store is Phase 4.3's job.
+
+## Presence (Phase 4.1)
+
+Names, colors, cursors, selections, and online status live exclusively in
+Yjs Awareness (`app/src/collaboration/presence.ts`). Awareness is
+ephemeral by design: it travels over the same WebSocket but never becomes
+part of the document, never reaches SQLite, and the server removes a
+client's state the moment its socket closes — which is what makes the
+connected-user indicator drop departed users immediately.
+
+Each browser keeps one identity (generated adjective-animal name plus a
+palette color) in `localStorage`, so a person keeps their name and color
+across documents and visits; the topbar input renames it. The identity is
+published as the awareness `user` field, exactly the shape
+`y-codemirror.next` reads to draw remote carets (`.cm-ySelectionCaret`,
+labeled with the name) and selections. The presence list rendering is a
+pure function over the raw awareness states, unit-tested without any
+networking.
 
 The editor assembles its extensions by hand instead of using CodeMirror's
 `basicSetup`, because `basicSetup` bundles CodeMirror's own history and

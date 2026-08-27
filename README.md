@@ -6,12 +6,12 @@ the live Asciidoctor.js preview on the right. When the document is ready, copy
 the plain `.adoc` source into your own Git repository — Git integration is
 intentionally not part of asciiweave.
 
-This is **Phase 3**: everyone who opens the same `/doc/<id>` URL edits the
-same document in real time. The live document is a Yjs `Y.Text` synchronized
-over WebSockets (`y-websocket`); each browser renders its own preview
-locally. Presence (remote cursors, names) and durable CRDT persistence
-arrive in Phase 4; see `asciiweave-ai-agent-instructions.md` for the
-roadmap.
+Currently at **Phase 4.1**: everyone who opens the same `/doc/<id>` URL
+edits the same document in real time, with named, colored remote cursors
+and selections and a connected-user indicator. The live document is a Yjs
+`Y.Text` synchronized over WebSockets (`y-websocket`); each browser renders
+its own preview locally. Durable CRDT persistence arrives in Phase 4.2; see
+`asciiweave-ai-agent-instructions.md` for the roadmap.
 
 ## Requirements
 

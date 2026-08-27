@@ -35,6 +35,30 @@ describe('durable Yjs persistence, deeply', () => {
     store.close()
   })
 
+  it('a failing store cannot crash the debounced persist timer', () => {
+    vi.useFakeTimers()
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const store = openStore(':memory:')
+      store.create('doc', '')
+      const failing: DocumentStore = {
+        ...store,
+        setYjsState: () => {
+          throw new Error('disk full')
+        },
+      }
+      const room = new Y.Doc()
+      bindRoomState(failing, 'doc', room, 100)
+      room.getText('source').insert(0, 'edit')
+      expect(() => vi.advanceTimersByTime(500)).not.toThrow()
+      expect(errors).toHaveBeenCalled()
+      store.close()
+    } finally {
+      errors.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
   it('a truncated healthy blob cannot crash the restore path', () => {
     const store = openStore(':memory:')
     store.create('doc', '= Fallback\n')

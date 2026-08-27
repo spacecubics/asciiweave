@@ -2,7 +2,7 @@ autofix: false
 
 ignore:
   - /.git
-  - "*.svg"
+  - '*.svg'
 
 rules:
   end-of-file:

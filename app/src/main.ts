@@ -1,4 +1,6 @@
+import type { WebsocketProvider } from 'y-websocket'
 import './style.css'
+import { connectCollaboration } from './collaboration/provider'
 import { createDocument, fetchDocument, saveDocument } from './documents/api'
 import { createAutosaver } from './documents/save'
 import { createLocalDocument, type LocalDocument } from './documents/ydoc'
@@ -8,8 +10,8 @@ import { createPreview } from './preview/preview'
 declare global {
   interface Window {
     // Test hook: lets integration tests apply programmatic Yjs
-    // transactions and verify that editor and preview converge.
-    __asciiweave?: Pick<LocalDocument, 'ydoc' | 'ytext'>
+    // transactions, control the connection, and verify convergence.
+    __asciiweave?: Pick<LocalDocument, 'ydoc' | 'ytext'> & { provider: WebsocketProvider }
   }
 }
 
@@ -98,17 +100,20 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
     },
   )
 
-  // The Y.Text is the live canonical source. Preview and autosave follow
-  // it through its observer, so they do not care whether a change came
-  // from CodeMirror or from a programmatic Yjs transaction.
-  const local = createLocalDocument(doc.source)
+  // The Y.Text is the live canonical source, synchronized with other
+  // browsers on the same document URL. Preview and autosave follow it
+  // through its observer, so they do not care whether a change came from
+  // CodeMirror, a programmatic transaction, or a remote collaborator.
+  // Each browser renders its own preview locally; HTML is never shared.
+  const local = createLocalDocument()
+  const provider = connectCollaboration(local.ydoc, id)
   local.onSourceChange((source) => {
     preview.update(source)
     autosaver.update(source)
   })
   createEditor(sourcePane, local.ytext, local.undoManager)
   preview.renderNow(local.ytext.toString())
-  window.__asciiweave = { ydoc: local.ydoc, ytext: local.ytext }
+  window.__asciiweave = { ydoc: local.ydoc, ytext: local.ytext, provider }
 
   // Best-effort flush of unsaved edits when the tab is closed or hidden.
   window.addEventListener('pagehide', () => {

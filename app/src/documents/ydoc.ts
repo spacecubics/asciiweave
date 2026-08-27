@@ -9,24 +9,18 @@ export interface LocalDocument {
   dispose(): void
 }
 
-// Insert the persisted source into the shared text exactly once. Guarded so
-// that bootstrapping an already-initialized text never duplicates content.
-export function initializeSource(ytext: Y.Text, initialSource: string): void {
-  if (ytext.length === 0) {
-    ytext.insert(0, initialSource)
-  }
-}
-
 // The live canonical source in the browser is this Y.Text; CodeMirror and
-// the preview are both views of it. There is no networking in Phase 2 —
-// the Y.Doc lives only in this browser tab.
-export function createLocalDocument(initialSource: string): LocalDocument {
+// the preview are both views of it. Content arrives through the network
+// provider: the server seeds a new room from the persisted source, so the
+// client never inserts initial content itself (which two clients could
+// otherwise both do).
+export function createLocalDocument(): LocalDocument {
   const ydoc = new Y.Doc()
   const ytext = ydoc.getText('source')
-  initializeSource(ytext, initialSource)
 
-  // Created after the bootstrap insert so undo can never remove the
-  // persisted content, only edits made afterwards.
+  // Remote updates (including the seeded content) carry the provider's
+  // transaction origin, which the UndoManager does not track — so undo
+  // only ever reverts this user's own edits.
   const undoManager = new Y.UndoManager(ytext)
 
   return {

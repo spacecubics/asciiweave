@@ -10,6 +10,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://localhost:8787',
+      '/collab': { target: 'ws://localhost:8787', ws: true },
     },
   },
   build: {

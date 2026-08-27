@@ -1,20 +1,33 @@
 import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
-import { createLocalDocument, initializeSource } from '../src/documents/ydoc'
+import { createLocalDocument } from '../src/documents/ydoc'
+
+// Applies an update the way a network provider would: produced by another
+// Y.Doc and carrying a non-null transaction origin.
+function applyRemote(
+  local: ReturnType<typeof createLocalDocument>,
+  mutate: (ytext: Y.Text) => void,
+) {
+  const other = new Y.Doc()
+  Y.applyUpdate(other, Y.encodeStateAsUpdate(local.ydoc))
+  mutate(other.getText('source'))
+  const update = Y.encodeStateAsUpdate(other, Y.encodeStateVector(local.ydoc))
+  Y.applyUpdate(local.ydoc, update, 'remote-provider')
+}
 
 describe('local Yjs document', () => {
-  it('bootstraps the persisted source into Y.Text exactly once', () => {
-    const local = createLocalDocument('= Hello\n')
-    expect(local.ytext.toString()).toBe('= Hello\n')
+  it('starts empty and receives content through remote-style updates', () => {
+    const local = createLocalDocument()
+    expect(local.ytext.toString()).toBe('')
 
-    // Re-running the bootstrap must not duplicate the content.
-    initializeSource(local.ytext, '= Hello\n')
-    expect(local.ytext.toString()).toBe('= Hello\n')
+    applyRemote(local, (ytext) => ytext.insert(0, '= Seeded by the server\n'))
+    expect(local.ytext.toString()).toBe('= Seeded by the server\n')
     local.dispose()
   })
 
   it('notifies observers with the full source for programmatic changes', () => {
-    const local = createLocalDocument('= Title\n\nbody\n')
+    const local = createLocalDocument()
+    local.ytext.insert(0, '= Title\n\nbody\n')
     const seen: string[] = []
     const stop = local.onSourceChange((source) => seen.push(source))
 
@@ -30,7 +43,8 @@ describe('local Yjs document', () => {
   })
 
   it('notifies observers regardless of the transaction origin', () => {
-    const local = createLocalDocument('base')
+    const local = createLocalDocument()
+    local.ytext.insert(0, 'base')
     const seen: string[] = []
     local.onSourceChange((source) => seen.push(source))
 
@@ -42,10 +56,11 @@ describe('local Yjs document', () => {
     local.dispose()
   })
 
-  it('undo/redo covers user edits but never the bootstrap content', () => {
-    const local = createLocalDocument('= Persisted\n')
+  it('undo/redo covers local edits but never remote updates', () => {
+    const local = createLocalDocument()
+    applyRemote(local, (ytext) => ytext.insert(0, '= Persisted\n'))
 
-    // Nothing to undo right after opening: the bootstrap is not tracked.
+    // Nothing to undo right after opening: remote content is not tracked.
     local.undoManager.undo()
     expect(local.ytext.toString()).toBe('= Persisted\n')
 
@@ -68,8 +83,9 @@ describe('local Yjs document', () => {
 
   it('drives preview and autosave callbacks from Y.Text convergence', () => {
     // Wire the observer the same way main.ts does and verify both sinks
-    // receive the converged text after a Yjs-only transaction.
-    const local = createLocalDocument('= Doc\n')
+    // receive the converged text after a remote-style update.
+    const local = createLocalDocument()
+    local.ytext.insert(0, '= Doc\n')
     const previewed: string[] = []
     const saved: string[] = []
     local.onSourceChange((source) => {
@@ -77,14 +93,7 @@ describe('local Yjs document', () => {
       saved.push(source)
     })
 
-    const update = (() => {
-      // Apply an update produced by a second Y.Doc, as a remote peer would.
-      const other = new Y.Doc()
-      Y.applyUpdate(other, Y.encodeStateAsUpdate(local.ydoc))
-      other.getText('source').insert(0, 'merged: ')
-      return Y.encodeStateAsUpdate(other, Y.encodeStateVector(local.ydoc))
-    })()
-    Y.applyUpdate(local.ydoc, update)
+    applyRemote(local, (ytext) => ytext.insert(0, 'merged: '))
 
     expect(local.ytext.toString()).toBe('merged: = Doc\n')
     expect(previewed.at(-1)).toBe('merged: = Doc\n')

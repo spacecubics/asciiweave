@@ -6,7 +6,8 @@ async function createDoc(page: Page): Promise<string> {
   await page.goto('/')
   await page.getByRole('button', { name: 'New document' }).click()
   await page.waitForURL(DOC_URL)
-  await expect(page.locator('.cm-content')).toBeVisible()
+  // Content arrives via collaboration sync; wait for it before editing.
+  await expect(page.locator('.cm-content')).toContainText('Untitled Document')
   return page.url()
 }
 

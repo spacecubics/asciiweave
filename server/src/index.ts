@@ -1,8 +1,10 @@
 import { readFileSync, existsSync } from 'node:fs'
+import type { Server } from 'node:http'
 import { join } from 'node:path'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { createApp } from './app'
+import { setupCollaboration } from './collaboration/rooms'
 import { openStore } from './persistence/db'
 
 const port = Number(process.env.PORT ?? 8787)
@@ -24,6 +26,8 @@ if (existsSync(join(appDist, 'index.html'))) {
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`asciiweave server listening on http://localhost:${info.port}`)
 })
+
+setupCollaboration(server as Server, store)
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {

@@ -11,6 +11,9 @@ export interface AppOptions {
   // server reads its in-memory rooms; the Worker asks the Durable
   // Object.
   liveSource?: (id: string) => string | undefined | Promise<string | undefined>
+  // Build identity reported by /api/health (git commit SHA in
+  // deployments, 'dev' otherwise).
+  commit?: string
 }
 
 // The durable Yjs state is the one authoritative document store; the
@@ -29,6 +32,17 @@ export function createApp(store: DocumentStore, codec: StateCodec, options: AppO
     const state = await store.getYjsState(id)
     return state ? codec.decodeStateToSource(state) : legacy
   }
+
+  // Deployment probe: reports the running build and proves database
+  // connectivity with a real (empty) query. Never exposes secrets.
+  app.get('/api/health', async (c) => {
+    try {
+      await store.get('health-probe')
+    } catch {
+      return c.json({ ok: false, commit: options.commit ?? 'dev' }, 503)
+    }
+    return c.json({ ok: true, commit: options.commit ?? 'dev' })
+  })
 
   app.post('/api/documents', async (c) => {
     const doc = await store.create(generateDocumentId(), INITIAL_SOURCE)

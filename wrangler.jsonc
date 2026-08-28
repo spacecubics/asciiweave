@@ -56,6 +56,9 @@
     },
     "production": {
       "name": "asciiweave",
+      // Custom Domain: Cloudflare manages the DNS record and
+      // certificate for it automatically on deploy.
+      "routes": [{ "pattern": "asciiweave.spacecubics.org", "custom_domain": true }],
       "assets": {
         "directory": "app/dist",
         "not_found_handling": "single-page-application",

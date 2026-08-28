@@ -156,12 +156,51 @@ identity; titles/filenames are not identities.
 
 ## Persistence
 
-`server/src/persistence/db.ts` wraps the built-in `node:sqlite`
-(`DatabaseSync`, WAL mode). `node:sqlite` is still marked experimental, so
-every direct use of it lives in this one module behind the `DocumentStore`
-interface — swapping to `better-sqlite3` or similar would touch only this
-file. The database path comes from `ASCIIWEAVE_DB`; tests use temp files and
-prove restart survival by closing and reopening the store.
+The storage boundary is `DocumentStore`
+(`server/src/persistence/store.ts`): an asynchronous, domain-level
+interface (documents + opaque Yjs state), never a generic SQL wrapper.
+Two implementations exist and pass one shared behavioral contract suite
+(`server/tests/store-contract.ts`):
+
+- `server/src/persistence/sqlite.ts` — the built-in `node:sqlite`
+  (`DatabaseSync`, WAL mode) for the Node target. Synchronous under the
+  async interface; every direct `node:sqlite` use lives in this one
+  module.
+- `server/src/persistence/d1.ts` — Cloudflare D1 for the Worker
+  target, tested against a real local D1 in workerd
+  (`npm run test:workers`).
+
+The schema comes from one numbered, immutable migration series in
+`migrations/`, shared verbatim by both engines and applied by the local
+runner (startup or `npm run db:migrate`) and by
+`wrangler d1 migrations apply`. Both track applied files in the same
+`d1_migrations` table. The database path comes from `ASCIIWEAVE_DB`;
+tests use temp files and prove restart survival by closing and
+reopening the store.
+
+## Cloudflare Worker target
+
+`server/src/worker/index.ts` is a second composition root over the same
+`createApp` and codec. Two runtime-specific rules shape it:
+
+- **One yjs build per runtime.** The Node server must use the CJS yjs
+  instance y-websocket requires; the Worker bundles the ESM build. The
+  shared code (`collaboration/codec.ts`, `collaboration/room-binding.ts`)
+  therefore takes the yjs module as a parameter instead of importing it,
+  and the Worker bundle never contains `node:sqlite` or `createRequire`.
+- **One writer per document.** Where the Node target owns rooms in
+  process memory, the Worker gives each document a `CollabRoom` Durable
+  Object (`server/src/worker/room.ts`) speaking the y-websocket wire
+  protocol (sync + awareness) over `WebSocketPair`. It restores from D1
+  through the same corrupt-blob-tolerant `bindRoomState`, persists
+  debounced snapshots to D1 — never every keystroke — and flushes when
+  the last client leaves. The API's freshness rule (live room text over
+  persisted state) holds because the Worker asks the document's Object
+  for its current text.
+
+Static assets are served by Workers Assets with SPA fallback; only
+`/api/*` and `/collab/*` reach the Worker (`run_worker_first`).
+Deployment, environments, and rollback: `docs/deployment.md`.
 
 ## Stale-render prevention
 

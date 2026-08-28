@@ -18,7 +18,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:migrate": "tsx server/src/persistence/migrate-cli.ts apply",
+    "db:status": "tsx server/src/persistence/migrate-cli.ts status"
   },
   "dependencies": {
     "@asciidoctor/core": "4.0.11",

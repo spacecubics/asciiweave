@@ -5,7 +5,7 @@ import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { createApp } from './app'
 import { getActiveRoomSource, setupCollaboration } from './collaboration/rooms'
-import { openStore } from './persistence/db'
+import { openStore } from './persistence/sqlite'
 
 const port = Number(process.env.PORT ?? 8787)
 const dbPath = process.env.ASCIIWEAVE_DB ?? 'data/asciiweave.db'

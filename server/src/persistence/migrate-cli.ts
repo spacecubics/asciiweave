@@ -1,4 +1,4 @@
-import { applyMigrations, migrationStatus, openDatabase } from './db'
+import { applyMigrations, migrationStatus, openDatabase } from './sqlite'
 
 // Migration runner for the local SQLite database:
 //   npm run db:status  — list applied and pending migrations

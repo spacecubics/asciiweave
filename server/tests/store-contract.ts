@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { DocumentStore } from '../src/persistence/db'
+import type { DocumentStore } from '../src/persistence/store'
 
 // Behavioral contract every DocumentStore implementation must satisfy,
 // so a second backend (the coming Cloudflare D1 store) can prove it

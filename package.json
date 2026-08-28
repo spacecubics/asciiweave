@@ -22,7 +22,7 @@
     "format:check": "prettier --check .",
     "db:migrate": "tsx server/src/persistence/migrate-cli.ts apply",
     "db:status": "tsx server/src/persistence/migrate-cli.ts status",
-    "deploy:staging": "npm run build && wrangler d1 migrations apply DB --remote --env staging && wrangler deploy --env staging"
+    "deploy:staging": "npm run build && wrangler d1 migrations apply DB --remote --env staging && wrangler deploy --env staging --var GIT_COMMIT:$(git rev-parse HEAD)"
   },
   "dependencies": {
     "@asciidoctor/core": "4.0.11",

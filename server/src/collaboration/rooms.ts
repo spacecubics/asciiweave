@@ -2,6 +2,11 @@ import type { Server } from 'node:http'
 import { WebSocketServer } from 'ws'
 import { docs, setPersistence, setupWSConnection } from 'y-websocket/bin/utils'
 import type * as YTypes from 'yjs'
+import {
+  bindRoomState as bindRoomStateNeutral,
+  persistRoom as persistRoomNeutral,
+  seedRoom,
+} from './room-binding'
 import { Y } from './state'
 import type { DocumentStore } from '../persistence/store'
 
@@ -13,74 +18,21 @@ type YDoc = YTypes.Doc
 // is the room name — there is no second collaboration ID.
 const COLLAB_PATH = /^\/collab\/([A-Za-z0-9_-]+)$/
 
-const PERSIST_DEBOUNCE_MS = 1000
+export { seedRoom }
 
-// Seed a freshly created room with the persisted source, exactly once.
-// Seeding on the server instead of in each client means two browsers
-// opening the same document cannot both insert the initial content.
-export function seedRoom(store: DocumentStore, docName: string, ydoc: YDoc): void {
-  const doc = store.get(docName)
-  if (!doc) {
-    return
-  }
-  const ytext = ydoc.getText('source')
-  if (ytext.length === 0) {
-    ytext.insert(0, doc.source)
-  }
-}
-
-// Persist the room's canonical CRDT state (and the plain-text
-// representation alongside it, until Phase 4.3 unifies the stores).
-// Rooms for IDs that are not documents are never persisted.
+// Node-side wrappers binding the shared room persistence logic
+// (room-binding.ts) to the one CJS yjs instance y-websocket uses.
 export function persistRoom(store: DocumentStore, docName: string, ydoc: YDoc): void {
-  if (!store.get(docName)) {
-    return
-  }
-  store.setYjsState(docName, Y.encodeStateAsUpdate(ydoc))
-  store.updateSource(docName, ydoc.getText('source').toString())
+  persistRoomNeutral(Y, store, docName, ydoc)
 }
 
-// Restore a room when y-websocket creates it. The durable Yjs state is
-// canonical; the plain-source seed is only the migration path for
-// documents that predate CRDT persistence. Afterwards, every room
-// update re-persists the state (debounced), so durability does not
-// depend on a graceful shutdown or on the last client leaving.
 export function bindRoomState(
   store: DocumentStore,
   docName: string,
   ydoc: YDoc,
-  debounceMs: number = PERSIST_DEBOUNCE_MS,
+  debounceMs?: number,
 ): void {
-  const stored = store.getYjsState(docName)
-  let restored = false
-  if (stored) {
-    try {
-      Y.applyUpdate(ydoc, stored)
-      restored = true
-    } catch (error) {
-      // A corrupt blob must never take the document down with it: fall
-      // back to the plain-text representation and re-persist from there.
-      console.error(`corrupt Yjs state for ${docName}, falling back to plain source:`, error)
-    }
-  }
-  if (!restored) {
-    seedRoom(store, docName, ydoc)
-  }
-
-  let timer: ReturnType<typeof setTimeout> | undefined
-  ydoc.on('update', () => {
-    clearTimeout(timer)
-    timer = setTimeout(() => {
-      // A failed write (disk full, closed store) must not crash the
-      // process from inside a timer; the next update retries anyway.
-      try {
-        persistRoom(store, docName, ydoc)
-      } catch (error) {
-        console.error(`failed to persist room ${docName}:`, error)
-      }
-    }, debounceMs)
-  })
-  ydoc.on('destroy', () => clearTimeout(timer))
+  bindRoomStateNeutral(Y, store, docName, ydoc, debounceMs)
 }
 
 // Current text of a live in-memory room, if one is open for this

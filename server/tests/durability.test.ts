@@ -2,7 +2,8 @@ import { createRequire } from 'node:module'
 import { describe, expect, it, vi } from 'vitest'
 import type * as YTypes from 'yjs'
 import { bindRoomState, persistRoom } from '../src/collaboration/rooms'
-import { openStore, type DocumentStore } from '../src/persistence/db'
+import { openStore } from '../src/persistence/sqlite'
+import type { DocumentStore } from '../src/persistence/store'
 
 const Y = createRequire(import.meta.url)('yjs') as typeof YTypes
 

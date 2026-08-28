@@ -3,7 +3,7 @@ import { WebSocketServer } from 'ws'
 import { docs, setPersistence, setupWSConnection } from 'y-websocket/bin/utils'
 import type * as YTypes from 'yjs'
 import { Y } from './state'
-import type { DocumentStore } from '../persistence/db'
+import type { DocumentStore } from '../persistence/store'
 
 type YDoc = YTypes.Doc
 

@@ -4,7 +4,12 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { describeStoreContract } from './store-contract'
-import { applyMigrations, migrationStatus, openDatabase, openStore } from '../src/persistence/db'
+import {
+  applyMigrations,
+  migrationStatus,
+  openDatabase,
+  openStore,
+} from '../src/persistence/sqlite'
 
 // The shared behavioral contract, against in-memory node:sqlite.
 describeStoreContract(() => openStore(':memory:'))

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { decodeStateToSource, encodeSourceAsState } from './collaboration/state'
 import { generateDocumentId } from './documents/ids'
-import type { DocumentStore } from './persistence/db'
+import type { DocumentStore } from './persistence/store'
 
 export const INITIAL_SOURCE = '= Untitled Document\n\nStart writing AsciiDoc here.\n'
 

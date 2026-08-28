@@ -2,7 +2,8 @@ import { createRequire } from 'node:module'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as YTypes from 'yjs'
 import { bindRoomState, persistRoom, seedRoom } from '../src/collaboration/rooms'
-import { openStore, type DocumentStore } from '../src/persistence/db'
+import { openStore } from '../src/persistence/sqlite'
+import type { DocumentStore } from '../src/persistence/store'
 
 // Use the same CJS yjs module instance as the room code (see rooms.ts):
 // documents must never mix structs from the ESM and CJS builds.

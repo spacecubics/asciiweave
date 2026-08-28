@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, INITIAL_SOURCE } from '../src/app'
 import { decodeStateToSource, encodeSourceAsState } from '../src/collaboration/state'
-import { openStore, type DocumentStore } from '../src/persistence/db'
+import { openStore } from '../src/persistence/sqlite'
+import type { DocumentStore } from '../src/persistence/store'
 
 describe('document API', () => {
   let store: DocumentStore

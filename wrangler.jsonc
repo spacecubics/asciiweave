@@ -1,0 +1,76 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The top-level config is for local development and tests only
+  // (wrangler dev, @cloudflare/vitest-pool-workers). Real deployments
+  // always name an environment: `wrangler deploy --env staging` or
+  // `--env production`. The top-level name is deliberately not a real
+  // Worker so a bare `wrangler deploy` cannot touch staging or
+  // production.
+  "name": "asciiweave-dev",
+  "main": "server/src/worker/index.ts",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "app/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/collab/*"],
+  },
+  "observability": {
+    "enabled": true,
+  },
+  // Durable Object class migrations (Worker-level, unrelated to the D1
+  // schema migrations in migrations/).
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["CollabRoom"],
+    },
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "CollabRoom" }],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "asciiweave-staging",
+      "database_id": "d0874065-59a1-4004-b24f-24b2cc62af1c",
+    },
+  ],
+  "env": {
+    "staging": {
+      "name": "asciiweave-staging",
+      "assets": {
+        "directory": "app/dist",
+        "not_found_handling": "single-page-application",
+        "run_worker_first": ["/api/*", "/collab/*"],
+      },
+      "durable_objects": {
+        "bindings": [{ "name": "ROOMS", "class_name": "CollabRoom" }],
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "asciiweave-staging",
+          "database_id": "d0874065-59a1-4004-b24f-24b2cc62af1c",
+        },
+      ],
+    },
+    "production": {
+      "name": "asciiweave",
+      "assets": {
+        "directory": "app/dist",
+        "not_found_handling": "single-page-application",
+        "run_worker_first": ["/api/*", "/collab/*"],
+      },
+      "durable_objects": {
+        "bindings": [{ "name": "ROOMS", "class_name": "CollabRoom" }],
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "asciiweave-production",
+          "database_id": "e8f975ed-6380-4f03-a2f4-f1174d6d0293",
+        },
+      ],
+    },
+  },
+}

@@ -46,6 +46,9 @@ always pass `--env staging` or `--env production`.
   dashboard (My Profile → API Tokens), then store both with
   Settings → Secrets and variables → Actions, or
   `gh secret set CLOUDFLARE_API_TOKEN` fed from a secure source.
+  The production smoke test also requires `CLOUDFLARE_ACCESS_CLIENT_ID`
+  and `CLOUDFLARE_ACCESS_CLIENT_SECRET` for a service token allowed by
+  the production Access application's Service Auth policy.
   Secrets are never exposed to pull requests from forks.
 
 ## Schema migrations

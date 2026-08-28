@@ -55,10 +55,16 @@ jobs:
           command: deploy --env production --var GIT_COMMIT:${{ github.sha }}
 
       - name: Production smoke test (non-destructive)
+        env:
+          ACCESS_ID: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_ID }}
+          ACCESS_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
         run: |
-          url="${{ steps.deploy.outputs.deployment-url }}"
+          url="https://asciiweave.spacecubics.org"
           for i in $(seq 1 10); do
-            body=$(curl -sf "$url/api/health") && break
+            body=$(curl -sf \
+              -H "CF-Access-Client-Id: $ACCESS_ID" \
+              -H "CF-Access-Client-Secret: $ACCESS_SECRET" \
+              "$url/api/health") && break
             sleep 3
           done
           echo "health: $body"

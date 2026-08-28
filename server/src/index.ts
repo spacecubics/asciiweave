@@ -5,14 +5,18 @@ import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { createApp } from './app'
 import { getActiveRoomSource, setupCollaboration } from './collaboration/rooms'
+import { codec } from './collaboration/state'
 import { openStore } from './persistence/sqlite'
 
 const port = Number(process.env.PORT ?? 8787)
 const dbPath = process.env.ASCIIWEAVE_DB ?? 'data/asciiweave.db'
 const appDist = 'app/dist'
 
+// openStore applies any pending migrations from migrations/ at startup
+// (forward-only, transactional); a failure aborts startup with the
+// failing migration named.
 const store = openStore(dbPath)
-const app = createApp(store, getActiveRoomSource)
+const app = createApp(store, codec, { liveSource: getActiveRoomSource })
 
 // Serve the built browser app when it exists (production / e2e). During
 // development Vite serves the app instead and proxies /api here.

@@ -6,11 +6,12 @@ import type { DocumentRecord, DocumentStore } from './store'
 
 // node:sqlite is still marked experimental; keep all direct usage inside
 // this module so the driver can be swapped without touching callers.
-// This module is Node-only; the storage boundary it implements lives in
-// persistence/store.ts.
+// This module is Node-only and must never be imported by Worker code —
+// the Cloudflare target uses persistence/d1.ts against the same
+// migration files.
 
-// The numbered SQL files that define the schema. Resolved relative to
-// this source file so the runner works from any cwd.
+// The same numbered SQL files that Wrangler applies to D1. Resolved
+// relative to this source file so the runner works from any cwd.
 export const MIGRATIONS_DIR = join(fileURLToPath(import.meta.url), '../../../../migrations')
 
 // Same tracking table Wrangler uses for D1, so local and D1 databases
@@ -137,23 +138,23 @@ export function openStore(path: string, migrationsDir: string = MIGRATIONS_DIR):
   `)
 
   return {
-    create(id, source) {
+    async create(id, source) {
       const now = new Date().toISOString()
       insert.run(id, source, now, now)
       return { id, source, revision: 1, created_at: now, updated_at: now }
     },
-    get(id) {
+    async get(id) {
       return select.get(id) as DocumentRecord | undefined
     },
-    updateSource(id, source) {
+    async updateSource(id, source) {
       const now = new Date().toISOString()
       return update.run(source, now, id).changes === 1
     },
-    getYjsState(id) {
+    async getYjsState(id) {
       const row = selectY.get(id) as { state: Uint8Array } | undefined
       return row?.state
     },
-    setYjsState(id, state) {
+    async setYjsState(id, state) {
       upsertY.run(id, state, new Date().toISOString())
     },
     close() {

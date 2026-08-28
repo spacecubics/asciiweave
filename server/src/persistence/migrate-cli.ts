@@ -1,8 +1,9 @@
 import { applyMigrations, migrationStatus, openDatabase } from './sqlite'
 
-// Migration runner for the local SQLite database:
+// Migration runner for the local SQLite target:
 //   npm run db:status  — list applied and pending migrations
 //   npm run db:migrate — apply pending migrations
+// D1 databases use `wrangler d1 migrations` with the same files.
 
 const command = process.argv[2]
 const dbPath = process.env.ASCIIWEAVE_DB ?? 'data/asciiweave.db'

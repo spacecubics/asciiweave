@@ -1,53 +1,61 @@
 import { Hono } from 'hono'
-import { decodeStateToSource, encodeSourceAsState } from './collaboration/state'
+import type { StateCodec } from './collaboration/codec'
 import { generateDocumentId } from './documents/ids'
 import type { DocumentStore } from './persistence/store'
 
 export const INITIAL_SOURCE = '= Untitled Document\n\nStart writing AsciiDoc here.\n'
+
+export interface AppOptions {
+  // Current text of a live collaboration room, if one is open for this
+  // document — fresher than the debounced persisted state. The Node
+  // server reads its in-memory rooms; the Worker asks the Durable
+  // Object.
+  liveSource?: (id: string) => string | undefined | Promise<string | undefined>
+}
 
 // The durable Yjs state is the one authoritative document store; the
 // collaboration path (WebSocket + server-side persistence) is the only
 // writer. Plain AsciiDoc source is derived data: current room text if a
 // room is live, else decoded CRDT state, else the legacy plain-text row
 // for documents that predate CRDT persistence.
-export function createApp(store: DocumentStore, liveSource?: (id: string) => string | undefined) {
+export function createApp(store: DocumentStore, codec: StateCodec, options: AppOptions = {}) {
   const app = new Hono()
 
-  const deriveSource = (id: string, legacy: string): string => {
-    const live = liveSource?.(id)
+  const deriveSource = async (id: string, legacy: string): Promise<string> => {
+    const live = await options.liveSource?.(id)
     if (live !== undefined) {
       return live
     }
-    const state = store.getYjsState(id)
-    return state ? decodeStateToSource(state) : legacy
+    const state = await store.getYjsState(id)
+    return state ? codec.decodeStateToSource(state) : legacy
   }
 
-  app.post('/api/documents', (c) => {
-    const doc = store.create(generateDocumentId(), INITIAL_SOURCE)
+  app.post('/api/documents', async (c) => {
+    const doc = await store.create(generateDocumentId(), INITIAL_SOURCE)
     // Authoritative CRDT state exists from birth; the plain-text row is
     // only a derived representation.
-    store.setYjsState(doc.id, encodeSourceAsState(INITIAL_SOURCE))
+    await store.setYjsState(doc.id, codec.encodeSourceAsState(INITIAL_SOURCE))
     return c.json({ id: doc.id }, 201)
   })
 
-  app.get('/api/documents/:id', (c) => {
-    const doc = store.get(c.req.param('id'))
+  app.get('/api/documents/:id', async (c) => {
+    const doc = await store.get(c.req.param('id'))
     if (!doc) {
       return c.json({ error: 'document not found' }, 404)
     }
-    return c.json({ ...doc, source: deriveSource(doc.id, doc.source) })
+    return c.json({ ...doc, source: await deriveSource(doc.id, doc.source) })
   })
 
   // Plain .adoc export for committing to Git — derived from the
   // collaborative state, never a separate store.
-  app.get('/api/documents/:id/source', (c) => {
-    const doc = store.get(c.req.param('id'))
+  app.get('/api/documents/:id/source', async (c) => {
+    const doc = await store.get(c.req.param('id'))
     if (!doc) {
       return c.json({ error: 'document not found' }, 404)
     }
     c.header('content-type', 'text/plain; charset=utf-8')
     c.header('content-disposition', `attachment; filename="${doc.id}.adoc"`)
-    return c.body(deriveSource(doc.id, doc.source))
+    return c.body(await deriveSource(doc.id, doc.source))
   })
 
   return app

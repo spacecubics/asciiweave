@@ -25,20 +25,20 @@ describe('sqlite store', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it('survives a close and reopen (server restart)', () => {
+  it('survives a close and reopen (server restart)', async () => {
     const path = join(dir, 'restart.db')
     const first = openStore(path)
-    first.create('abc', '= Persisted\n')
-    first.updateSource('abc', '= Persisted v2\n')
+    await first.create('abc', '= Persisted\n')
+    await first.updateSource('abc', '= Persisted v2\n')
     const state = new Uint8Array([9, 8, 7])
-    first.setYjsState('abc', state)
+    await first.setYjsState('abc', state)
     first.close()
 
     const second = openStore(path)
-    const doc = second.get('abc')
+    const doc = await second.get('abc')
     expect(doc?.source).toBe('= Persisted v2\n')
     expect(doc?.revision).toBe(2)
-    expect(second.getYjsState('abc')).toEqual(state)
+    expect(await second.getYjsState('abc')).toEqual(state)
     second.close()
   })
 
@@ -64,7 +64,7 @@ describe('sqlite store', () => {
     db.close()
   })
 
-  it('adopts a pre-migration legacy database without losing data', () => {
+  it('adopts a pre-migration legacy database without losing data', async () => {
     // Databases from before the migration series: created with
     // CREATE TABLE IF NOT EXISTS at startup, no revision column, no
     // migration tracking.
@@ -89,11 +89,11 @@ describe('sqlite store', () => {
     legacy.close()
 
     const store = openStore(path)
-    const doc = store.get('old-doc')
+    const doc = await store.get('old-doc')
     expect(doc?.source).toBe('= Legacy\n')
     expect(doc?.revision).toBe(1)
-    expect(store.updateSource('old-doc', '= Legacy v2\n')).toBe(true)
-    expect(store.get('old-doc')?.revision).toBe(2)
+    expect(await store.updateSource('old-doc', '= Legacy v2\n')).toBe(true)
+    expect((await store.get('old-doc'))?.revision).toBe(2)
     store.close()
 
     const db = openDatabase(path)

@@ -12,5 +12,8 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["app/src", "app/tests", "server/src", "server/tests", "e2e", "*.ts"]
+  "include": ["app/src", "app/tests", "server/src", "server/tests", "e2e", "*.ts"],
+  // Worker code and tests are typed against the Workers runtime instead
+  // of Node/DOM — see tsconfig.worker.json (npm run typecheck runs both).
+  "exclude": ["server/src/worker", "server/tests-workers"]
 }

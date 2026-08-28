@@ -26,9 +26,12 @@ Everything lives in the corporate Cloudflare account
 The production URL is a Worker Custom Domain declared in
 `wrangler.jsonc` (`routes` with `custom_domain: true`); Cloudflare
 creates and maintains the DNS record and certificate for it on deploy.
-The API token used for deployment therefore needs zone-level DNS and
-Workers Routes permissions on `spacecubics.org` in addition to the
-account-level Workers and D1 scopes.
+The API token used for deployment therefore needs Workers Routes:Edit
+scoped to the `spacecubics.org` zone in addition to the account-level
+Workers and D1 scopes; without it the deploy fails with authentication
+error 10000 on `/zones/<id>/workers/routes` after the Worker itself has
+already uploaded. No DNS permission is needed; the Workers platform
+manages the record itself.
 
 `wrangler.jsonc` defines both as environments; the top-level config
 (`asciiweave-dev`) exists only for local development and the workerd
@@ -40,16 +43,25 @@ always pass `--env staging` or `--env production`.
 - **Local CLI**: `npx wrangler login` (OAuth, browser flow). Check with
   `npx wrangler whoami` — it must show the corporate account. Never use
   a Global API Key.
-- **GitHub CI**: repository secrets `CLOUDFLARE_API_TOKEN` (an API
-  token scoped to Workers Scripts:Edit + D1:Edit on this account only)
-  and `CLOUDFLARE_ACCOUNT_ID`. Create the token in the Cloudflare
-  dashboard (My Profile → API Tokens), then store both with
-  Settings → Secrets and variables → Actions, or
+- **GitHub CI**: repository secrets `CLOUDFLARE_API_TOKEN` (an
+  account-owned API token, `github-asciiweave`, with Workers
+  Scripts:Edit + D1:Edit on this account plus Workers Routes:Edit on
+  the `spacecubics.org` zone) and `CLOUDFLARE_ACCOUNT_ID`. Create or
+  edit the token in the Cloudflare dashboard (Manage Account -> Account
+  API Tokens; editing its permissions does not rotate the secret), then
+  store both with Settings -> Secrets and variables -> Actions, or
   `gh secret set CLOUDFLARE_API_TOKEN` fed from a secure source.
-  The production smoke test also requires `CLOUDFLARE_ACCESS_CLIENT_ID`
-  and `CLOUDFLARE_ACCESS_CLIENT_SECRET` for a service token allowed by
-  the production Access application's Service Auth policy.
   Secrets are never exposed to pull requests from forks.
+
+  The production smoke test also requires `CLOUDFLARE_ACCESS_CLIENT_ID`
+  and `CLOUDFLARE_ACCESS_CLIENT_SECRET`, the credentials of an Access
+  service token (Zero Trust -> Access controls -> Service credentials).
+  The Access application covering `asciiweave.spacecubics.org` must
+  have a policy with action **Service Auth** that includes that service
+  token; a regular Allow policy never matches a service token, because
+  Allow requires an interactive identity. The symptom of a missing or
+  wrong Service Auth policy is a 302 redirect to the Access login page,
+  which `curl -f` does not treat as an error.
 
 ## Schema migrations
 
@@ -68,7 +80,7 @@ Keep migrations inside the SQLite subset D1 supports: no PRAGMAs, no
 extensions. Connection setup such as WAL mode lives in
 `server/src/persistence/sqlite.ts`, not in migrations.
 
-## Branch → staging → production flow
+## Branch -> staging -> production flow
 
 1. **Pull requests / branches**: GitHub Actions runs lint, format,
    typecheck, unit tests, D1 contract tests (locally in workerd — no
@@ -90,8 +102,9 @@ extensions. Connection setup such as WAL mode lives in
    production_ workflow runs on `push` to `main`: it repeats all tests,
    applies pending migrations to the production D1 database, deploys
    the `asciiweave` Worker only if migrations succeed, and smoke-tests
-   `/api/health` on the deployed URL. Nothing deploys to production
-   from a pull request.
+   `/api/health` on <https://asciiweave.spacecubics.org>, authenticating
+   through Cloudflare Access with the service token. Nothing deploys to
+   production from a pull request.
 
 Because the Worker implements a Durable Object, Cloudflare does not
 generate preview URLs for uploaded versions — use the dedicated staging

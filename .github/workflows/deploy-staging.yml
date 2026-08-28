@@ -1,0 +1,65 @@
+name: Deploy staging
+
+# Manual staging deployment: apply pending migrations to the staging D1
+# database, then deploy the current ref to the asciiweave-staging
+# Worker. Runs only from this repository (never for forks — fork pull
+# requests cannot see the Cloudflare secrets).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: asciiweave-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.repository == 'spacecubics/asciiweave'
+
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run checks
+        run: |
+          npm run typecheck
+          npm test
+          npm run test:workers
+
+      - name: Build the browser app
+        run: npm run build
+
+      - name: Migrate staging D1 and deploy the staging Worker
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Pin to the repository's Wrangler version.
+          packageManager: npm
+          preCommands: npx wrangler d1 migrations apply DB --remote --env staging
+          command: deploy --env staging --var GIT_COMMIT:${{ github.sha }}
+
+      - name: Staging smoke test
+        run: |
+          url="${{ steps.deploy.outputs.deployment-url }}"
+          for i in $(seq 1 10); do
+            body=$(curl -sf "$url/api/health") && break
+            sleep 3
+          done
+          echo "health: $body"
+          echo "$body" | grep -q '"ok":true'
+          echo "$body" | grep -q "${{ github.sha }}"
+          echo "Deployed commit ${{ github.sha }} to $url" >> "$GITHUB_STEP_SUMMARY"

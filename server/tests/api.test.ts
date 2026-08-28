@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createApp, INITIAL_SOURCE } from '../src/app'
-import { decodeStateToSource, encodeSourceAsState } from '../src/collaboration/state'
+import { codec, decodeStateToSource, encodeSourceAsState } from '../src/collaboration/state'
 import { openStore } from '../src/persistence/sqlite'
 import type { DocumentStore } from '../src/persistence/store'
 
@@ -10,7 +10,7 @@ describe('document API', () => {
 
   beforeEach(() => {
     store = openStore(':memory:')
-    app = createApp(store)
+    app = createApp(store, codec)
   })
 
   afterEach(() => {
@@ -36,7 +36,7 @@ describe('document API', () => {
 
   it('gives new documents authoritative CRDT state holding the template', async () => {
     const id = await createDoc()
-    const state = store.getYjsState(id)
+    const state = await store.getYjsState(id)
     expect(state).toBeDefined()
     expect(decodeStateToSource(state!)).toBe(INITIAL_SOURCE)
 
@@ -68,13 +68,15 @@ describe('document API', () => {
     const id = await createDoc()
     // Simulate the room persistence cycle having advanced the CRDT
     // state while the derived text row lags behind.
-    store.setYjsState(id, encodeSourceAsState('= Edited Collaboratively\n'))
+    await store.setYjsState(id, encodeSourceAsState('= Edited Collaboratively\n'))
     const doc = (await (await app.request(`/api/documents/${id}`)).json()) as { source: string }
     expect(doc.source).toBe('= Edited Collaboratively\n')
   })
 
   it('prefers the live room content over persisted state', async () => {
-    const liveApp = createApp(store, (id) => (id === knownId ? 'live room text' : undefined))
+    const liveApp = createApp(store, codec, {
+      liveSource: (id) => (id === knownId ? 'live room text' : undefined),
+    })
     const res = await liveApp.request('/api/documents', { method: 'POST' })
     const knownId = ((await res.json()) as { id: string }).id
     const doc = (await (await liveApp.request(`/api/documents/${knownId}`)).json()) as {
@@ -84,7 +86,7 @@ describe('document API', () => {
   })
 
   it('falls back to the plain-text row for legacy documents', async () => {
-    store.create('legacy-doc', '= Pre-CRDT Document\n')
+    await store.create('legacy-doc', '= Pre-CRDT Document\n')
     const doc = (await (await app.request('/api/documents/legacy-doc')).json()) as {
       source: string
     }
@@ -93,7 +95,7 @@ describe('document API', () => {
 
   it('exports plain .adoc source as a download', async () => {
     const id = await createDoc()
-    store.setYjsState(id, encodeSourceAsState('= Export Me\n\n本文です。\n'))
+    await store.setYjsState(id, encodeSourceAsState('= Export Me\n\n本文です。\n'))
     const res = await app.request(`/api/documents/${id}/source`)
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('text/plain')
@@ -104,7 +106,7 @@ describe('document API', () => {
   it('round-trips Japanese and Unicode text through the CRDT path', async () => {
     const id = await createDoc()
     const source = '= 見出し\n\n本文です。絵文字 🌸 とアクセント é も保持されます。\n'
-    store.setYjsState(id, encodeSourceAsState(source))
+    await store.setYjsState(id, encodeSourceAsState(source))
     const doc = (await (await app.request(`/api/documents/${id}`)).json()) as { source: string }
     expect(doc.source).toBe(source)
   })

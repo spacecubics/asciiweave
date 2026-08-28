@@ -22,8 +22,8 @@ export { seedRoom }
 
 // Node-side wrappers binding the shared room persistence logic
 // (room-binding.ts) to the one CJS yjs instance y-websocket uses.
-export function persistRoom(store: DocumentStore, docName: string, ydoc: YDoc): void {
-  persistRoomNeutral(Y, store, docName, ydoc)
+export function persistRoom(store: DocumentStore, docName: string, ydoc: YDoc): Promise<void> {
+  return persistRoomNeutral(Y, store, docName, ydoc)
 }
 
 export function bindRoomState(
@@ -31,8 +31,8 @@ export function bindRoomState(
   docName: string,
   ydoc: YDoc,
   debounceMs?: number,
-): void {
-  bindRoomStateNeutral(Y, store, docName, ydoc, debounceMs)
+): Promise<void> {
+  return bindRoomStateNeutral(Y, store, docName, ydoc, debounceMs)
 }
 
 // Current text of a live in-memory room, if one is open for this
@@ -51,14 +51,14 @@ export function setupCollaboration(httpServer: Server, store: DocumentStore): vo
     // bring the whole process down, so failures stay inside the hook.
     bindState: async (docName, ydoc) => {
       try {
-        bindRoomState(store, docName, ydoc)
+        await bindRoomState(store, docName, ydoc)
       } catch (error) {
         console.error(`failed to bind room ${docName}:`, error)
       }
     },
     writeState: async (docName, ydoc) => {
       try {
-        persistRoom(store, docName, ydoc)
+        await persistRoom(store, docName, ydoc)
       } catch (error) {
         console.error(`failed to write room state ${docName}:`, error)
       }

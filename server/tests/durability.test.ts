@@ -42,47 +42,47 @@ function randomEdit(random: () => number, ytext: YTypes.Text): void {
   }
 }
 
-function restoredText(store: DocumentStore, id: string): string {
+async function restoredText(store: DocumentStore, id: string): Promise<string> {
   const room = new Y.Doc()
-  bindRoomState(store, id, room)
+  await bindRoomState(store, id, room)
   const text = room.getText('source').toString()
   room.destroy()
   return text
 }
 
 describe('durable Yjs persistence, deeply', () => {
-  it('fuzz: persist/restore stays lossless across hundreds of random edits', () => {
+  it('fuzz: persist/restore stays lossless across hundreds of random edits', async () => {
     for (const seed of [1, 42, 20260827]) {
       const random = mulberry32(seed)
       const store = openStore(':memory:')
-      store.create('doc', '')
+      await store.create('doc', '')
       const live = new Y.Doc()
       const ytext = live.getText('source')
 
       for (let op = 0; op < 300; op++) {
         randomEdit(random, ytext)
         if (op % 25 === 24) {
-          persistRoom(store, 'doc', live)
-          expect(restoredText(store, 'doc'), `seed ${seed}, op ${op}`).toBe(ytext.toString())
+          await persistRoom(store, 'doc', live)
+          expect(await restoredText(store, 'doc'), `seed ${seed}, op ${op}`).toBe(ytext.toString())
         }
       }
       store.close()
     }
   })
 
-  it('fuzz: restore chains (restore of a restore) never drift', () => {
+  it('fuzz: restore chains (restore of a restore) never drift', async () => {
     const random = mulberry32(7)
     const store = openStore(':memory:')
-    store.create('doc', '')
+    await store.create('doc', '')
     let current = new Y.Doc()
     current.getText('source').insert(0, 'generation 0 ')
 
     // Each generation: persist, restore into a fresh doc, edit the
     // restored doc, repeat. Catches state that decays through cycles.
     for (let generation = 1; generation <= 20; generation++) {
-      persistRoom(store, 'doc', current)
+      await persistRoom(store, 'doc', current)
       const next = new Y.Doc()
-      bindRoomState(store, 'doc', next)
+      await bindRoomState(store, 'doc', next)
       expect(next.getText('source').toString()).toBe(current.getText('source').toString())
       current.destroy()
       current = next
@@ -93,13 +93,13 @@ describe('durable Yjs persistence, deeply', () => {
     store.close()
   })
 
-  it('fuzz: multi-peer divergence with mid-flight persistence converges', () => {
+  it('fuzz: multi-peer divergence with mid-flight persistence converges', async () => {
     for (const seed of [3, 99]) {
       const random = mulberry32(seed)
       const store = openStore(':memory:')
-      store.create('doc', '')
+      await store.create('doc', '')
       const room = new Y.Doc()
-      bindRoomState(store, 'doc', room, 1e9)
+      await bindRoomState(store, 'doc', room, 1e9)
       const peers = [room, new Y.Doc(), new Y.Doc()]
 
       const syncPair = (a: YTypes.Doc, b: YTypes.Doc) => {
@@ -117,57 +117,57 @@ describe('durable Yjs persistence, deeply', () => {
           )
         }
         if (random() < 0.2) {
-          persistRoom(store, 'doc', room) // snapshot mid-divergence
+          await persistRoom(store, 'doc', room) // snapshot mid-divergence
         }
       }
       // Full mesh sync, then the persisted room must equal everyone.
       for (const a of peers) for (const b of peers) syncPair(a, b)
-      persistRoom(store, 'doc', room)
+      await persistRoom(store, 'doc', room)
       const final = room.getText('source').toString()
       for (const peer of peers) {
         expect(peer.getText('source').toString()).toBe(final)
       }
-      expect(restoredText(store, 'doc')).toBe(final)
+      expect(await restoredText(store, 'doc')).toBe(final)
       store.close()
     }
   })
 
-  it('an intentionally emptied document stays empty — no legacy resurrection', () => {
+  it('an intentionally emptied document stays empty — no legacy resurrection', async () => {
     const store = openStore(':memory:')
-    store.create('doc', '= Old Content That Was Deleted\n')
+    await store.create('doc', '= Old Content That Was Deleted\n')
     const room = new Y.Doc()
-    bindRoomState(store, 'doc', room) // seeds from legacy text
+    await bindRoomState(store, 'doc', room) // seeds from legacy text
     room.getText('source').delete(0, room.getText('source').length)
-    persistRoom(store, 'doc', room)
+    await persistRoom(store, 'doc', room)
 
     // The persisted empty CRDT state must win over the (stale) text row.
-    expect(restoredText(store, 'doc')).toBe('')
+    expect(await restoredText(store, 'doc')).toBe('')
     store.close()
   })
 
-  it('a corrupt state blob falls back to plain source and heals on next persist', () => {
+  it('a corrupt state blob falls back to plain source and heals on next persist', async () => {
     const store = openStore(':memory:')
-    store.create('doc', '= Recoverable\n')
-    store.setYjsState('doc', new Uint8Array([255, 254, 253, 1, 2, 3]))
+    await store.create('doc', '= Recoverable\n')
+    await store.setYjsState('doc', new Uint8Array([255, 254, 253, 1, 2, 3]))
 
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
       const room = new Y.Doc()
-      expect(() => bindRoomState(store, 'doc', room)).not.toThrow()
+      await expect(bindRoomState(store, 'doc', room)).resolves.toBeUndefined()
       expect(room.getText('source').toString()).toBe('= Recoverable\n')
 
       // The next persist overwrites the corrupt blob with a healthy one.
-      persistRoom(store, 'doc', room)
-      expect(restoredText(store, 'doc')).toBe('= Recoverable\n')
+      await persistRoom(store, 'doc', room)
+      expect(await restoredText(store, 'doc')).toBe('= Recoverable\n')
     } finally {
       errors.mockRestore()
     }
     store.close()
   })
 
-  it('a truncated healthy blob cannot crash the restore path', () => {
+  it('a truncated healthy blob cannot crash the restore path', async () => {
     const store = openStore(':memory:')
-    store.create('doc', '= Fallback\n')
+    await store.create('doc', '= Fallback\n')
     const healthy = new Y.Doc()
     healthy.getText('source').insert(0, 'complete state')
     const full = Y.encodeStateAsUpdate(healthy)
@@ -175,9 +175,12 @@ describe('durable Yjs persistence, deeply', () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
       for (const cut of [1, 3, Math.floor(full.length / 2), full.length - 1]) {
-        store.setYjsState('doc', full.slice(0, cut))
+        await store.setYjsState('doc', full.slice(0, cut))
         const room = new Y.Doc()
-        expect(() => bindRoomState(store, 'doc', room), `truncated at ${cut}`).not.toThrow()
+        await expect(
+          bindRoomState(store, 'doc', room),
+          `truncated at ${cut}`,
+        ).resolves.toBeUndefined()
         const text = room.getText('source').toString()
         // Whatever survives decoding, the room must be usable: either
         // the fallback text or a consistent partial state.
@@ -191,22 +194,22 @@ describe('durable Yjs persistence, deeply', () => {
     store.close()
   })
 
-  it('a failing store cannot crash the debounced persist timer', () => {
+  it('a failing store cannot crash the debounced persist timer', async () => {
     vi.useFakeTimers()
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
       const store = openStore(':memory:')
-      store.create('doc', '')
+      await store.create('doc', '')
       const failing: DocumentStore = {
         ...store,
-        setYjsState: () => {
+        setYjsState: async () => {
           throw new Error('disk full')
         },
       }
       const room = new Y.Doc()
-      bindRoomState(failing, 'doc', room, 100)
+      await bindRoomState(failing, 'doc', room, 100)
       room.getText('source').insert(0, 'edit')
-      expect(() => vi.advanceTimersByTime(500)).not.toThrow()
+      await vi.advanceTimersByTimeAsync(500)
       expect(errors).toHaveBeenCalled()
       store.close()
     } finally {
@@ -215,24 +218,24 @@ describe('durable Yjs persistence, deeply', () => {
     }
   })
 
-  it('applying the same stored state twice never duplicates content', () => {
+  it('applying the same stored state twice never duplicates content', async () => {
     const store = openStore(':memory:')
-    store.create('doc', '')
+    await store.create('doc', '')
     const live = new Y.Doc()
     live.getText('source').insert(0, 'exactly once')
-    persistRoom(store, 'doc', live)
+    await persistRoom(store, 'doc', live)
 
     const room = new Y.Doc()
-    bindRoomState(store, 'doc', room)
-    bindRoomState(store, 'doc', room) // second bind, same doc
-    Y.applyUpdate(room, store.getYjsState('doc')!) // and a raw re-apply
+    await bindRoomState(store, 'doc', room)
+    await bindRoomState(store, 'doc', room) // second bind, same doc
+    Y.applyUpdate(room, (await store.getYjsState('doc'))!) // and a raw re-apply
     expect(room.getText('source').toString()).toBe('exactly once')
     store.close()
   })
 
-  it('survives a large document with long edit history', () => {
+  it('survives a large document with long edit history', async () => {
     const store = openStore(':memory:')
-    store.create('doc', '')
+    await store.create('doc', '')
     const live = new Y.Doc()
     const ytext = live.getText('source')
     const paragraph = 'これは長い文書の一部です。 With mixed English and 🌸 emoji.\n'
@@ -242,28 +245,28 @@ describe('durable Yjs persistence, deeply', () => {
         ytext.delete(Math.floor(ytext.length / 2), 10)
       }
     }
-    persistRoom(store, 'doc', live)
+    await persistRoom(store, 'doc', live)
     expect(ytext.length).toBeGreaterThan(100_000)
-    expect(restoredText(store, 'doc')).toBe(ytext.toString())
+    expect(await restoredText(store, 'doc')).toBe(ytext.toString())
     store.close()
   })
 
-  it('rapid room churn leaves no pending writes behind', () => {
+  it('rapid room churn leaves no pending writes behind', async () => {
     vi.useFakeTimers()
     try {
       const store = openStore(':memory:')
-      store.create('doc', 'base')
+      await store.create('doc', 'base')
       for (let cycle = 0; cycle < 10; cycle++) {
         const room = new Y.Doc()
-        bindRoomState(store, 'doc', room, 100)
+        await bindRoomState(store, 'doc', room, 100)
         room.getText('source').insert(0, `c${cycle} `)
-        persistRoom(store, 'doc', room) // writeState on last-client-leave
+        await persistRoom(store, 'doc', room) // writeState on last-client-leave
         room.destroy() // must cancel the pending debounce
       }
-      const persisted = restoredText(store, 'doc')
-      vi.advanceTimersByTime(10_000)
+      const persisted = await restoredText(store, 'doc')
+      await vi.advanceTimersByTimeAsync(10_000)
       // No stray timer fired after destroy: state is unchanged.
-      expect(restoredText(store, 'doc')).toBe(persisted)
+      expect(await restoredText(store, 'doc')).toBe(persisted)
       expect(persisted).toContain('c9')
       expect(persisted).toContain('base')
       store.close()

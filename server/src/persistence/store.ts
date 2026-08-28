@@ -1,6 +1,8 @@
-// Runtime-neutral storage boundary. API and collaboration code depend
-// only on this interface, never on a concrete database, so a second
-// backend (the coming Cloudflare D1 store) can slot in behind it.
+// Runtime-neutral storage boundary. Both the Node server (node:sqlite)
+// and the Cloudflare Worker (D1) implement this interface; API and
+// collaboration code depend only on it. Methods are asynchronous even
+// though node:sqlite is synchronous, so the D1 implementation fits the
+// same shape.
 
 export interface DocumentRecord {
   id: string
@@ -13,13 +15,13 @@ export interface DocumentRecord {
 }
 
 export interface DocumentStore {
-  create(id: string, source: string): DocumentRecord
-  get(id: string): DocumentRecord | undefined
-  updateSource(id: string, source: string): boolean
+  create(id: string, source: string): Promise<DocumentRecord>
+  get(id: string): Promise<DocumentRecord | undefined>
+  updateSource(id: string, source: string): Promise<boolean>
   // Canonical Yjs collaborative state, stored as an opaque encoded
   // update. Plain AsciiDoc text is a user-facing representation, not a
   // replacement for this.
-  getYjsState(id: string): Uint8Array | undefined
-  setYjsState(id: string, state: Uint8Array): void
+  getYjsState(id: string): Promise<Uint8Array | undefined>
+  setYjsState(id: string, state: Uint8Array): Promise<void>
   close(): void
 }

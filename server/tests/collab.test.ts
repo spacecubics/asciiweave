@@ -20,95 +20,95 @@ describe('collaboration rooms', () => {
     store.close()
   })
 
-  it('seeds a new room from the persisted source exactly once', () => {
-    store.create('abc', '= Persisted\n')
+  it('seeds a new room from the persisted source exactly once', async () => {
+    await store.create('abc', '= Persisted\n')
     const ydoc = new Y.Doc()
 
-    seedRoom(store, 'abc', ydoc)
+    await seedRoom(store, 'abc', ydoc)
     expect(ydoc.getText('source').toString()).toBe('= Persisted\n')
 
     // A second bind (e.g. after reconnect races) must not duplicate.
-    seedRoom(store, 'abc', ydoc)
+    await seedRoom(store, 'abc', ydoc)
     expect(ydoc.getText('source').toString()).toBe('= Persisted\n')
   })
 
-  it('leaves rooms for unknown documents empty', () => {
+  it('leaves rooms for unknown documents empty', async () => {
     const ydoc = new Y.Doc()
-    seedRoom(store, 'missing', ydoc)
+    await seedRoom(store, 'missing', ydoc)
     expect(ydoc.getText('source').toString()).toBe('')
   })
 
-  it('persists CRDT state and plain text together', () => {
-    store.create('abc', 'old content')
+  it('persists CRDT state and plain text together', async () => {
+    await store.create('abc', 'old content')
     const ydoc = new Y.Doc()
     ydoc.getText('source').insert(0, 'collaborative result')
 
-    persistRoom(store, 'abc', ydoc)
-    expect(store.get('abc')?.source).toBe('collaborative result')
+    await persistRoom(store, 'abc', ydoc)
+    expect((await store.get('abc'))?.source).toBe('collaborative result')
 
     const restored = new Y.Doc()
-    Y.applyUpdate(restored, store.getYjsState('abc')!)
+    Y.applyUpdate(restored, (await store.getYjsState('abc'))!)
     expect(restored.getText('source').toString()).toBe('collaborative result')
   })
 
-  it('never persists rooms without a document', () => {
+  it('never persists rooms without a document', async () => {
     const ydoc = new Y.Doc()
     ydoc.getText('source').insert(0, 'stray')
-    expect(() => persistRoom(store, 'unknown', ydoc)).not.toThrow()
-    expect(store.get('unknown')).toBeUndefined()
-    expect(store.getYjsState('unknown')).toBeUndefined()
+    await expect(persistRoom(store, 'unknown', ydoc)).resolves.toBeUndefined()
+    expect(await store.get('unknown')).toBeUndefined()
+    expect(await store.getYjsState('unknown')).toBeUndefined()
   })
 
-  it('restores a room from durable CRDT state, which wins over plain text', () => {
-    store.create('abc', 'stale plain text')
+  it('restores a room from durable CRDT state, which wins over plain text', async () => {
+    await store.create('abc', 'stale plain text')
     const original = new Y.Doc()
     original.getText('source').insert(0, 'crdt content')
-    store.setYjsState('abc', Y.encodeStateAsUpdate(original))
+    await store.setYjsState('abc', Y.encodeStateAsUpdate(original))
 
     const room = new Y.Doc()
-    bindRoomState(store, 'abc', room)
+    await bindRoomState(store, 'abc', room)
     expect(room.getText('source').toString()).toBe('crdt content')
   })
 
-  it('falls back to plain-text seeding for documents without CRDT state', () => {
-    store.create('abc', '= Legacy Document\n')
+  it('falls back to plain-text seeding for documents without CRDT state', async () => {
+    await store.create('abc', '= Legacy Document\n')
     const room = new Y.Doc()
-    bindRoomState(store, 'abc', room)
+    await bindRoomState(store, 'abc', room)
     expect(room.getText('source').toString()).toBe('= Legacy Document\n')
   })
 
-  it('re-persists the room state on every update, debounced', () => {
+  it('re-persists the room state on every update, debounced', async () => {
     vi.useFakeTimers()
     try {
-      store.create('abc', '')
+      await store.create('abc', '')
       const room = new Y.Doc()
-      bindRoomState(store, 'abc', room, 1000)
+      await bindRoomState(store, 'abc', room, 1000)
 
       room.getText('source').insert(0, 'first ')
       room.getText('source').insert(6, 'second')
-      expect(store.getYjsState('abc')).toBeUndefined()
+      expect(await store.getYjsState('abc')).toBeUndefined()
 
-      vi.advanceTimersByTime(1000)
+      await vi.advanceTimersByTimeAsync(1000)
       const restored = new Y.Doc()
-      Y.applyUpdate(restored, store.getYjsState('abc')!)
+      Y.applyUpdate(restored, (await store.getYjsState('abc'))!)
       expect(restored.getText('source').toString()).toBe('first second')
 
       // Destroying the room (last client left) cancels the pending timer.
       room.getText('source').insert(0, 'late ')
       room.destroy()
-      vi.advanceTimersByTime(5000)
+      await vi.advanceTimersByTimeAsync(5000)
       const after = new Y.Doc()
-      Y.applyUpdate(after, store.getYjsState('abc')!)
+      Y.applyUpdate(after, (await store.getYjsState('abc'))!)
       expect(after.getText('source').toString()).toBe('first second')
     } finally {
       vi.useRealTimers()
     }
   })
 
-  it('round-trips concurrent edit history through persistence', () => {
+  it('round-trips concurrent edit history through persistence', async () => {
     // Two peers diverge, merge, and the merged CRDT state survives a
     // persist/restore cycle byte-exactly.
-    store.create('abc', '')
+    await store.create('abc', '')
     const peerA = new Y.Doc()
     peerA.getText('source').insert(0, 'shared base')
     const peerB = new Y.Doc()
@@ -119,9 +119,9 @@ describe('collaboration rooms', () => {
     Y.applyUpdate(peerB, Y.encodeStateAsUpdate(peerA))
     const merged = peerA.getText('source').toString()
 
-    persistRoom(store, 'abc', peerA)
+    await persistRoom(store, 'abc', peerA)
     const room = new Y.Doc()
-    bindRoomState(store, 'abc', room)
+    await bindRoomState(store, 'abc', room)
     expect(room.getText('source').toString()).toBe(merged)
   })
 })

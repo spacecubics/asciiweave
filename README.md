@@ -16,10 +16,19 @@ derived data, available from `GET /api/documents/<id>/source` for
 committing to Git. See `asciiweave-ai-agent-instructions.md` for the
 roadmap.
 
+asciiweave has two server targets sharing the same application code:
+
+| Target              | Runtime         | Persistent database |
+| ------------------- | --------------- | ------------------- |
+| Local / on-premises | Node.js 26      | `node:sqlite` file  |
+| Cloudflare          | Workers runtime | D1 binding          |
+
+See `docs/deployment.md` for the Cloudflare staging/production workflow.
+
 ## Requirements
 
-- Node.js >= 24 (uses the built-in `node:sqlite`; it prints an
-  `ExperimentalWarning`, which is expected)
+- Node.js >= 26 (`.nvmrc` pins the tested release; uses the built-in
+  `node:sqlite`)
 
 ## Development
 
@@ -42,20 +51,30 @@ npm start
 
 Configuration via environment variables:
 
-| Variable        | Default              | Meaning                  |
-| --------------- | -------------------- | ------------------------ |
-| `PORT`          | `8787`               | HTTP port                |
-| `ASCIIWEAVE_DB` | `data/asciiweave.db` | SQLite database location |
+| Variable        | Default              | Meaning                   |
+| --------------- | -------------------- | ------------------------- |
+| `PORT`          | `8787`               | HTTP port                 |
+| `ASCIIWEAVE_DB` | `data/asciiweave.db` | SQLite database location  |
+| `GIT_COMMIT`    | `dev`                | Reported by `/api/health` |
+
+(`.env.example` lists the same names.) The server applies pending SQL
+migrations from `migrations/` at startup; `npm run db:status` and
+`npm run db:migrate` run them by hand against `ASCIIWEAVE_DB`.
 
 ## Tests and checks
 
 ```sh
-npm test            # Vitest: API, persistence, render scheduler, autosave
-npm run test:e2e    # Playwright: real-browser end-to-end tests
-npm run typecheck   # tsc --noEmit
-npm run lint        # ESLint
-npm run format      # Prettier
+npm test              # Vitest: API, persistence, render scheduler, autosave
+npm run test:workers  # same storage contract against local D1 in workerd
+npm run test:e2e      # Playwright: real-browser end-to-end tests
+npm run typecheck     # tsc: Node/browser project + Workers project
+npm run lint          # ESLint
+npm run format        # Prettier
 ```
+
+The storage layer has one behavioral contract suite
+(`server/tests/store-contract.ts`) that runs against both databases:
+`npm test` covers `node:sqlite`, `npm run test:workers` covers D1.
 
 The Playwright suite builds the app and starts a production-mode server on a
 temporary database automatically. Run `npx playwright install chromium` once
@@ -64,8 +83,9 @@ before the first e2e run.
 ## Layout
 
 ```
-app/     browser application (CodeMirror editor, Asciidoctor preview)
-server/  HTTP API and SQLite persistence
-e2e/     Playwright end-to-end tests
-docs/    architecture notes
+app/         browser application (CodeMirror editor, Asciidoctor preview)
+server/      HTTP API, collaboration, and persistence (Node + Worker)
+migrations/  numbered SQL migrations shared by SQLite and D1
+e2e/         Playwright end-to-end tests
+docs/        architecture and deployment notes
 ```

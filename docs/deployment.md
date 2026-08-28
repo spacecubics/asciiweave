@@ -18,10 +18,17 @@ fallback. See `docs/architecture.md` for the design.
 Everything lives in the corporate Cloudflare account
 (cloudflare@spacecubics.com):
 
-| Purpose    | Worker               | D1 database             |
-| ---------- | -------------------- | ----------------------- |
-| Staging    | `asciiweave-staging` | `asciiweave-staging`    |
-| Production | `asciiweave`         | `asciiweave-production` |
+| Purpose    | Worker               | D1 database             | URL                                  |
+| ---------- | -------------------- | ----------------------- | ------------------------------------ |
+| Staging    | `asciiweave-staging` | `asciiweave-staging`    | workers.dev subdomain                |
+| Production | `asciiweave`         | `asciiweave-production` | <https://asciiweave.spacecubics.org> |
+
+The production URL is a Worker Custom Domain declared in
+`wrangler.jsonc` (`routes` with `custom_domain: true`); Cloudflare
+creates and maintains the DNS record and certificate for it on deploy.
+The API token used for deployment therefore needs zone-level DNS and
+Workers Routes permissions on `spacecubics.org` in addition to the
+account-level Workers and D1 scopes.
 
 `wrangler.jsonc` defines both as environments; the top-level config
 (`asciiweave-dev`) exists only for local development and the workerd

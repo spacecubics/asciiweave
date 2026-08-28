@@ -5,7 +5,7 @@
   "description": "A HackMD-like collaborative web editor for AsciiDoc",
   "type": "module",
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "scripts": {
     "dev": "concurrently -n server,app -c blue,green \"npm:dev:server\" \"npm:dev:app\"",

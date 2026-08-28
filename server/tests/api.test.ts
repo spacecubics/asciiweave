@@ -34,6 +34,25 @@ describe('document API', () => {
     expect(ids.size).toBe(50)
   })
 
+  it('reports health with database connectivity', async () => {
+    const res = await app.request('/api/health')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: boolean; commit: string }
+    expect(body.ok).toBe(true)
+    expect(body.commit).toBe('dev')
+
+    const broken = createApp(
+      {
+        ...store,
+        get: async () => {
+          throw new Error('database gone')
+        },
+      },
+      codec,
+    )
+    expect((await broken.request('/api/health')).status).toBe(503)
+  })
+
   it('gives new documents authoritative CRDT state holding the template', async () => {
     const id = await createDoc()
     const state = await store.getYjsState(id)

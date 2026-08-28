@@ -16,7 +16,10 @@ const appDist = 'app/dist'
 // (forward-only, transactional); a failure aborts startup with the
 // failing migration named.
 const store = openStore(dbPath)
-const app = createApp(store, codec, { liveSource: getActiveRoomSource })
+const app = createApp(store, codec, {
+  liveSource: getActiveRoomSource,
+  commit: process.env.GIT_COMMIT,
+})
 
 // Serve the built browser app when it exists (production / e2e). During
 // development Vite serves the app instead and proxies /api here.

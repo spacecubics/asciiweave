@@ -92,6 +92,9 @@ export class CollabRoom {
 
   private accept(ws: WebSocket): void {
     ws.accept()
+    // The runtime's default binaryType is 'blob' (browser semantics);
+    // the wire protocol needs raw bytes.
+    ws.binaryType = 'arraybuffer'
     this.conns.set(ws, new Set())
     ws.addEventListener('message', (event) => {
       try {

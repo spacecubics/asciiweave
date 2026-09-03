@@ -125,6 +125,4 @@ Unless explicitly requested as future work, asciiweave does not include:
 - custom CRDT or OT algorithms;
 - AsciiDoc-aware CRDT operations;
 - AI writing features;
-- organizations or billing;
-- Teamtype integration;
-- native-editor collaboration.
+- organizations or billing.

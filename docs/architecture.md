@@ -195,15 +195,7 @@ mixed-script edits, restore chains, and multi-peer divergence;
 `e2e/durability.spec.ts` SIGKILLs a real server repeatedly, mid-typing,
 and against a pre-CRDT legacy database.
 
-## One authoritative store
-
-The durable Yjs state is the single authoritative document store, and
-the collaboration path is its only writer. The former client-side HTTP
-autosave (`PUT /api/documents/:id`) was removed because it was a second,
-competing writer that could diverge from the collaborative state. New
-documents get CRDT state at creation time (`POST` encodes the template
-into `yjs_state`), so plain-text seeding now only serves databases from
-before CRDT persistence.
+## Source resolution and export
 
 Plain AsciiDoc is derived data, resolved in freshness order: live room
 text (if a room is open), else decoded `yjs_state`, else the legacy
@@ -212,6 +204,8 @@ text (if a room is open), else decoded `yjs_state`, else the legacy
 download for committing to Git. The `documents.source` column survives
 only as a derived cache written by `persistRoom` — same write, same
 content, no second truth.
+
+## Connection state and offline editing
 
 The topbar indicator now reflects the collaboration connection
 (`Synced / Connecting… / Offline`) instead of HTTP save state: while

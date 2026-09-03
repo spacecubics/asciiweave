@@ -1,12 +1,11 @@
 name: Deploy production
 
-# Production reaches Cloudflare only via a push to main — normally the
-# merge commit of a reviewed pull request. Order matters: tests, build,
-# then D1 migrations, and the Worker deploys only if migrations succeed.
+# Production reaches Cloudflare only via the merge of a reviewed pull
+# request to main. Order matters: tests, build, then D1 migrations, and
+# the Worker deploys only if migrations succeed.
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 concurrency:
   group: asciiweave-production

@@ -103,8 +103,8 @@ build into the Worker.
 
 Use one numbered, immutable SQL migration series from `migrations/` for both
 SQLite and D1. Add migrations instead of editing files already applied to a
-deployed database. See `deployment.md` for environments, credentials,
-deployment, and rollback.
+deployed database. See [`deployment-cloudflare.md`](deployment-cloudflare.md)
+for environments, credentials, deployment, and rollback.
 
 ## Overall shape
 
@@ -285,7 +285,8 @@ reopening the store.
 
 Static assets are served by Workers Assets with SPA fallback; only
 `/api/*` and `/collab/*` reach the Worker (`run_worker_first`).
-Deployment, environments, and rollback: `docs/deployment.md`.
+Deployment, environments, and rollback:
+[`deployment-cloudflare.md`](deployment-cloudflare.md).
 
 ## Stale-render prevention
 

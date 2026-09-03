@@ -27,7 +27,7 @@ asciiweave has two server targets sharing the same application code:
 - [Behavioral requirements](docs/requirements.md)
 - [Architecture](docs/architecture.md)
 - [Testing](docs/testing.md)
-- [Deployment](docs/deployment.md)
+- [Cloudflare deployment](docs/deployment-cloudflare.md)
 
 ## Development
 

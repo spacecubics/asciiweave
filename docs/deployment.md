@@ -100,12 +100,15 @@ extensions. Connection setup such as WAL mode lives in
 
 3. **Production**: merge the reviewed pull request. Repository policy must
    prevent direct pushes to `main`; the _Deploy production_ workflow has no
-   manual trigger and runs only on `push` to `main`. It repeats its deployment
-   checks, applies pending migrations to the production D1 database, deploys
-   the `asciiweave` Worker only if migrations succeed, and smoke-tests
-   `/api/health` on <https://asciiweave.spacecubics.org>, authenticating through
-   Cloudflare Access with the service token. Pull requests never deploy
-   directly to production.
+   manual trigger and runs only on `push` to `main`. Before migration or
+   deployment, it checks spelling and formatting, runs ESLint and both
+   TypeScript projects, runs the unit, Worker/D1, and Playwright suites, and
+   builds the browser application for the exact `main` revision. It then
+   applies pending migrations to the production D1 database, deploys the
+   `asciiweave` Worker only if every check and migration succeeds, and
+   smoke-tests `/api/health` on <https://asciiweave.spacecubics.org>,
+   authenticating through Cloudflare Access with the service token. Pull
+   requests never deploy directly to production.
 
 Because the Worker implements a Durable Object, Cloudflare does not
 generate preview URLs for uploaded versions — use the dedicated staging

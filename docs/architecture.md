@@ -172,8 +172,7 @@ stored CRDT state wins when both exist.
 Every room update re-persists the full encoded state, debounced by ~1s
 (documents are small; snapshotting beats an update log at this scale).
 That means durability does not depend on a graceful shutdown or on the
-last client leaving — the restart e2e test SIGKILLs the server
-mid-session and both clients reconverge on reconnect.
+last client leaving.
 
 **One yjs module instance, ever.** `y-websocket/bin/utils` is CommonJS
 and `require`s the CJS build of yjs; server code that manipulates room
@@ -190,10 +189,6 @@ blob falls back to the plain-text representation and is healed by the
 next persist, and failures inside the persistence hooks or the debounce
 timer are contained (a rejected `writeState` promise inside y-websocket
 would otherwise crash the whole process as an unhandled rejection).
-`server/tests/durability.test.ts` fuzzes this layer with seeded random
-mixed-script edits, restore chains, and multi-peer divergence;
-`e2e/durability.spec.ts` SIGKILLs a real server repeatedly, mid-typing,
-and against a pre-CRDT legacy database.
 
 ## Source resolution and export
 
@@ -235,9 +230,7 @@ networking.
 The editor assembles its extensions by hand instead of using CodeMirror's
 `basicSetup`, because `basicSetup` bundles CodeMirror's own history and
 there must be exactly one undo system — the Yjs-aware one
-(`yUndoManagerKeymap`). `main.ts` exposes `window.__asciiweave` as a test
-hook so integration tests can apply Yjs transactions from outside the
-editor and verify convergence.
+(`yUndoManagerKeymap`).
 
 ## Document IDs
 

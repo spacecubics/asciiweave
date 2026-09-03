@@ -45,6 +45,18 @@ mocked WebSocket unit tests alone are insufficient. Exercise actual concurrent
 operations, temporary disconnection, reconnection, convergence, and isolation
 between different document IDs.
 
+`main.ts` exposes `window.__asciiweave` as an integration-test hook so tests
+can apply Yjs transactions outside CodeMirror, control the connection, and
+verify convergence.
+
+Durability coverage has two complementary layers:
+
+- `server/tests/durability.test.ts` fuzzes persistence with seeded random
+  mixed-script edits, restore chains, and multi-peer divergence.
+- `e2e/durability.spec.ts` manages its own server and database so it can
+  SIGKILL the server mid-session, restart it, and verify restoration and client
+  reconvergence, including for a pre-CRDT legacy database.
+
 The Playwright suite builds the app and starts the Node.js server on a temporary
 database automatically. Install its browser once before the first run:
 

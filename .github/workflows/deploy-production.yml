@@ -1,8 +1,8 @@
 name: Deploy production
 
-# Production reaches Cloudflare only via a push to main — normally the
-# merge commit of a reviewed pull request. Order matters: tests, build,
-# then D1 migrations, and the Worker deploys only if migrations succeed.
+# Production deploys after a push to main and can also be started manually
+# for a selected ref. Order matters: tests, build, then D1 migrations, and
+# the Worker deploys only if migrations succeed.
 on:
   push:
     branches: [main]

@@ -44,3 +44,9 @@ belong in `testing.md`.
 - Treat rendered document content as untrusted. Keep it in the sandboxed
   iframe without `allow-scripts` or `allow-same-origin`.
 - Do not allow arbitrary server-side `include::` access to the filesystem.
+
+## Operations
+
+- `GET /api/health` reports the running commit and verifies database access.
+- It returns `200` with `ok: true` when database access succeeds and `503` with
+  `ok: false` when database access fails.

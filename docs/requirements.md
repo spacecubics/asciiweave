@@ -8,12 +8,15 @@ belong in `testing.md`.
 
 - `POST /api/documents` creates a document with a random ID and authoritative
   CRDT state containing the initial template.
+- `GET /api/documents/<id>` returns the current source together with the
+  document ID, revision, and timestamps.
 - `/doc/<id>` opens the document, and different IDs never share state.
 - CodeMirror supports ordinary editing, line numbers, search, Yjs-aware
   undo/redo, line wrapping, resizing, Unicode, and Japanese text.
 - Source text is preserved exactly.
 - The split source/preview layout remains usable on desktop and narrow screens.
 - `GET /api/documents/<id>/source` exports current source as a `.adoc` file.
+- Document read and source-export requests for unknown IDs return `404`.
 
 ## Collaboration and persistence
 

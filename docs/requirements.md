@@ -1,8 +1,8 @@
 # Requirements
 
 This document defines the behavior asciiweave must preserve. Implementation
-decisions belong in `architecture.md`; verification strategy and commands
-belong in `testing.md`.
+decisions belong in [`architecture.md`](architecture.md); verification strategy
+and commands belong in [`testing.md`](testing.md).
 
 ## Documents and editing
 

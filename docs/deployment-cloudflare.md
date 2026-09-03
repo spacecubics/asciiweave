@@ -15,7 +15,7 @@ The browser never touches SQLite or D1; it talks only to the HTTP API
 and the `/collab/<id>` WebSocket. On Cloudflare, each document's
 WebSocket room is a `CollabRoom` Durable Object (the single writer for
 that document), and static assets are served by Workers Assets with SPA
-fallback. See `docs/architecture.md` for the design.
+fallback. See [`architecture.md`](architecture.md) for the design.
 
 ## Cloudflare resources
 

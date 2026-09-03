@@ -21,9 +21,12 @@ Cloudflare server targets, deployment workflows, and plain-source export are
 implemented. Preserve these properties when extending the application.
 
 Core design principles, technology choices, compatibility requirements, and
-server target design are documented in `docs/architecture.md`.
-The current product contract is documented in `docs/requirements.md`.
-Testing requirements and commands are documented in `docs/testing.md`.
+server target design are documented in
+[`docs/architecture.md`](docs/architecture.md).
+The current product contract is documented in
+[`docs/requirements.md`](docs/requirements.md).
+Testing requirements and commands are documented in
+[`docs/testing.md`](docs/testing.md).
 
 ---
 
@@ -33,8 +36,8 @@ Testing requirements and commands are documented in `docs/testing.md`.
 2. Keep changes focused on the requested behavior.
 3. Avoid speculative abstractions and unnecessary dependencies.
 4. Pin dependency versions.
-5. Follow `docs/testing.md`: add or update tests for behavior changes and run
-   the checks appropriate to the change.
+5. Follow [`docs/testing.md`](docs/testing.md): add or update tests for behavior
+   changes and run the checks appropriate to the change.
 6. Document commands needed to run the result.
 7. Record architectural decisions that are not obvious from the code.
 8. Preserve the separation between browser editing/rendering and server

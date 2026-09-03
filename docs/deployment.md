@@ -98,13 +98,17 @@ extensions. Connection setup such as WAL mode lives in
    `<staging-url>/api/health` reports `{"ok":true,"commit":<sha>}`.
    Do not drop or reset the staging database as part of routine tests.
 
-3. **Production**: merge the reviewed pull request. The _Deploy
-   production_ workflow runs on `push` to `main`: it repeats all tests,
-   applies pending migrations to the production D1 database, deploys
-   the `asciiweave` Worker only if migrations succeed, and smoke-tests
-   `/api/health` on <https://asciiweave.spacecubics.org>, authenticating
-   through Cloudflare Access with the service token. Nothing deploys to
-   production from a pull request.
+3. **Production**: the normal path is to rebase-merge a reviewed pull request.
+   Repository policy prevents direct pushes to `main`, allows only rebase
+   merges, and requires linear history. The _Deploy production_ workflow runs
+   after a `push` to `main` and can also be started manually for a selected ref
+   with `workflow_dispatch`. In either case, it runs its configured validation
+   and build steps before applying pending migrations and deploying the
+   `asciiweave` Worker, then smoke-tests `/api/health` through Cloudflare
+   Access. A `pull_request` event does not trigger a production deployment. The
+   [`deploy-production.yml`](../.github/workflows/deploy-production.yml)
+   workflow is the authoritative definition of its triggers, checks, and
+   order.
 
 Because the Worker implements a Durable Object, Cloudflare does not
 generate preview URLs for uploaded versions — use the dedicated staging

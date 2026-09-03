@@ -22,7 +22,12 @@ asciiweave has two server targets sharing the same application code:
 | Local / on-premises | Node.js >= 26   | `node:sqlite` file  |
 | Cloudflare          | Workers runtime | D1 binding          |
 
-See `docs/deployment.md` for the Cloudflare staging/production workflow.
+## Documentation
+
+- [Behavioral requirements](docs/requirements.md)
+- [Architecture](docs/architecture.md)
+- [Testing](docs/testing.md)
+- [Deployment](docs/deployment.md)
 
 ## Development
 
@@ -67,9 +72,6 @@ npm run format:check  # Prettier validation without modifying files
 ```
 
 Run `npm run format` to rewrite supported files with Prettier.
-
-See `docs/testing.md` for test-suite structure, browser setup, coverage
-expectations, and the complete validation sequence.
 
 ## Layout
 

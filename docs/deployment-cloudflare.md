@@ -120,9 +120,10 @@ Worker for integration testing.
 
 ## Rollback
 
-- **Worker code**: `npx wrangler rollback --env production` (or the
-  dashboard's Deployments page) reverts to a previous deployment.
-  Rolling back code does **not** roll back the schema.
+- **Worker code**: before rolling back, confirm that the selected Worker
+  version is compatible with the current production schema. Use
+  `npx wrangler rollback --env production` or the dashboard's Deployments
+  page. Rolling back code does **not** roll back the schema.
 - **Schema**: prefer expand-and-contract — additive migration first,
   deploy code tolerating old and new schema, destructive cleanup only
   in a later migration once no deployed code needs the old shape. Never
@@ -130,8 +131,6 @@ Worker for integration testing.
 - **Data**: D1 Time Travel can restore the database to a point in the
   last 30 days (`wrangler d1 time-travel info asciiweave-production`);
   confirm retention on the account's plan before relying on it.
-- The first production deployment only adds tables; restoring previous
-  behavior never requires deleting the D1 database.
 
 ## Known differences: local SQLite vs D1
 

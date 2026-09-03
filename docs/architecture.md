@@ -94,7 +94,7 @@ migrations, and CRDT codec:
 
 | Target              | Runtime            | Rooms                          | Database      |
 | ------------------- | ------------------ | ------------------------------ | ------------- |
-| Local / on-premises | Node.js            | In-process `y-websocket` rooms | `node:sqlite` |
+| Local / on-premises | Node.js >= 26      | In-process `y-websocket` rooms | `node:sqlite` |
 | Hosted              | Cloudflare Workers | Per-document Durable Objects   | D1            |
 
 Keep runtime-specific dependencies at the composition roots. Shared modules

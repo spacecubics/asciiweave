@@ -4,7 +4,7 @@ asciiweave has two server targets built from the same application code:
 
 | Target              | Runtime         | Database           | Entry point                  |
 | ------------------- | --------------- | ------------------ | ---------------------------- |
-| Local / on-premises | Node.js 26      | `node:sqlite` file | `server/src/index.ts`        |
+| Local / on-premises | Node.js >= 26   | `node:sqlite` file | `server/src/index.ts`        |
 | Cloudflare          | Workers runtime | D1 (binding `DB`)  | `server/src/worker/index.ts` |
 
 This guide covers deployment of the Cloudflare target. The local target is

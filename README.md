@@ -6,15 +6,14 @@ the live Asciidoctor.js preview on the right. When the document is ready, copy
 the plain `.adoc` source into your own Git repository — Git integration is
 intentionally not part of asciiweave.
 
-Currently at **Phase 4.3**: everyone who opens the same `/doc/<id>` URL
-edits the same document in real time, with named, colored remote cursors
-and selections and a connected-user indicator. The live document is a Yjs
-`Y.Text` synchronized over WebSockets (`y-websocket`); the durably
-persisted CRDT state on the server is the one authoritative store, and
-each browser renders its own preview locally. Plain `.adoc` source is
-derived data, available from `GET /api/documents/<id>/source` for
-committing to Git. See `asciiweave-ai-agent-instructions.md` for the
-roadmap.
+Everyone who opens the same `/doc/<id>` URL edits the same document in real
+time, with named, colored remote cursors and selections and a connected-user
+indicator. The live document is a Yjs `Y.Text` synchronized over WebSockets
+(`y-websocket`); the durably persisted CRDT state on the server is the one
+authoritative store, and each browser renders its own preview locally. Plain
+`.adoc` source is derived data, available from
+`GET /api/documents/<id>/source` for committing to Git. See
+`AGENTS.md` for implementation constraints.
 
 asciiweave has two server targets sharing the same application code:
 
@@ -64,7 +63,7 @@ migrations from `migrations/` at startup; `npm run db:status` and
 ## Tests and checks
 
 ```sh
-npm test              # Vitest: API, persistence, render scheduler, autosave
+npm test              # Vitest: API, persistence, render scheduler, CRDT durability
 npm run test:workers  # same storage contract against local D1 in workerd
 npm run test:e2e      # Playwright: real-browser end-to-end tests
 npm run typecheck     # tsc: Node/browser project + Workers project
@@ -72,13 +71,8 @@ npm run lint          # ESLint
 npm run format        # Prettier
 ```
 
-The storage layer has one behavioral contract suite
-(`server/tests/store-contract.ts`) that runs against both databases:
-`npm test` covers `node:sqlite`, `npm run test:workers` covers D1.
-
-The Playwright suite builds the app and starts a production-mode server on a
-temporary database automatically. Run `npx playwright install chromium` once
-before the first e2e run.
+See `docs/testing.md` for test-suite structure, browser setup, coverage
+expectations, and the complete validation sequence.
 
 ## Layout
 
@@ -87,5 +81,50 @@ app/         browser application (CodeMirror editor, Asciidoctor preview)
 server/      HTTP API, collaboration, and persistence (Node + Worker)
 migrations/  numbered SQL migrations shared by SQLite and D1
 e2e/         Playwright end-to-end tests
-docs/        architecture and deployment notes
+docs/        requirements, architecture, testing, and deployment notes
 ```
+
+## Potential productization work
+
+Possible future improvements include:
+
+- authentication;
+- read/write permissions;
+- document ownership;
+- document lists and recent documents;
+- document titles;
+- public/private sharing;
+- revision history and named snapshots;
+- comments;
+- visible copy and `.adoc` download controls;
+- better AsciiDoc syntax highlighting;
+- source/preview scroll synchronization;
+- resizable panes;
+- a document outline;
+- keyboard configuration and expanded Emacs-style CodeMirror bindings;
+- images and attachments;
+- secure `include::` support;
+- `xref` navigation;
+- Antora-aware preview;
+- Teamtype integration;
+- native Emacs or VS Code collaboration;
+- operational monitoring, backups, and scaling.
+
+These are candidates, not instructions to implement them all. Each substantial
+feature should be requested and reviewed separately. Includes and attachments
+need an explicit resource and path security model before implementation.
+
+## Current non-goals
+
+Unless explicitly requested as future work, asciiweave does not include:
+
+- Git, GitHub, or GitLab integration;
+- automatic commits or repository checkout;
+- Antora site generation;
+- Markdown or WYSIWYG editing;
+- custom CRDT or OT algorithms;
+- AsciiDoc-aware CRDT operations;
+- AI writing features;
+- organizations or billing;
+- Teamtype integration;
+- native-editor collaboration.

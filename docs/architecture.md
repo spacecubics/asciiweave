@@ -1,41 +1,139 @@
-# asciiweave architecture (Phase 4.3)
+# asciiweave architecture
 
 Decisions that are not obvious from the code alone.
+
+## Core design principles
+
+### AsciiDoc source is the document
+
+The canonical user-authored content is plain AsciiDoc text held in a Yjs
+`Y.Text` and persisted as Yjs state.
+
+Do not introduce a rich-text JSON format, make an editable AST canonical, or
+automatically rewrite or reformat the AsciiDoc source. A user must always be
+able to obtain ordinary `.adoc` text suitable for committing to Git.
+
+### Rendering is derived state
+
+Rendered HTML is disposable derived state:
+
+```text
+AsciiDoc source
+      |
+      v
+Asciidoctor.js
+      |
+      v
+HTML preview
+```
+
+Each browser renders its synchronized source locally. Never persist or
+synchronize rendered HTML, and never make it the canonical document.
+
+### Collaboration operates on text
+
+Synchronize the AsciiDoc source text. Do not make Yjs understand AsciiDoc
+structure, synchronize the Asciidoctor AST, or implement a custom CRDT or OT
+algorithm.
+
+### A URL identifies one document
+
+Each `/doc/<id>` URL identifies one independent AsciiDoc document and its Yjs
+room. Document IDs must remain stable, random, non-sequential, and URL-safe.
+Do not use a title or filename as the primary identity.
+
+### Keep one authoritative store
+
+Durable Yjs state is the authoritative document store, and the collaboration
+path is its only writer. Plain AsciiDoc is derived from the live room or stored
+CRDT state for display and export. The `documents.source` column is a legacy
+fallback and derived cache, not a second source of truth.
+
+Do not restore client-side HTTP autosave or another competing write path.
+
+## Technology and compatibility
+
+Use the established stack unless a requested change has a compelling reason
+to alter it:
+
+- TypeScript;
+- CodeMirror 6;
+- Asciidoctor.js 4 via `@asciidoctor/core`;
+- Yjs v13;
+- `y-codemirror.next`;
+- the Yjs v13-compatible `y-websocket` generation;
+- Vite;
+- Hono;
+- `node:sqlite` for the local/on-premises target;
+- Cloudflare Workers, Durable Objects, and D1 for the hosted target.
+
+Pin mutually compatible dependency versions in the lock file. Do not mix the
+stable Yjs v13 packages with development packages from the Yjs v14 family,
+such as `@y/y`, `@y/codemirror`, or `@y/websocket`.
+
+The Node collaboration server and `y-websocket/bin/utils` must share one Yjs
+module instance. Server code that manipulates room documents must load Yjs
+through `createRequire`, as described under durable CRDT state below.
+
+### Upstream references
+
+- CodeMirror documentation: https://codemirror.net/docs/
+- Asciidoctor.js documentation: https://docs.asciidoctor.org/asciidoctor.js/latest/
+- Yjs CodeMirror 6 binding: https://github.com/yjs/y-codemirror.next
+- Yjs WebSocket provider: https://github.com/yjs/y-websocket
+
+Asciidoctor.js conversion is asynchronous. `y-codemirror.next` binds a Yjs
+`Y.Text` to CodeMirror 6 and supports awareness-driven cursors, selections,
+and Yjs-aware undo/redo. Check upstream compatibility guidance before changing
+any of these packages.
+
+## Server targets
+
+The Node and Cloudflare targets share the application, persistence contract,
+migrations, and CRDT codec:
+
+| Target              | Runtime            | Rooms                          | Database      |
+| ------------------- | ------------------ | ------------------------------ | ------------- |
+| Local / on-premises | Node.js            | In-process `y-websocket` rooms | `node:sqlite` |
+| Hosted              | Cloudflare Workers | Per-document Durable Objects   | D1            |
+
+Keep runtime-specific dependencies at the composition roots. Shared modules
+must not accidentally bundle `node:sqlite`, `createRequire`, or the wrong Yjs
+build into the Worker.
+
+Use one numbered, immutable SQL migration series from `migrations/` for both
+SQLite and D1. Add migrations instead of editing files already applied to a
+deployed database. See `deployment.md` for environments, credentials,
+deployment, and rollback.
 
 ## Overall shape
 
 ```
 POST /api/documents  ->  random ID  ->  /doc/<id>
                                           |
-   browser A                              |                    browser B
-     Y.Doc  <---- ws://…/collab/<id> ---- + ---- ws://… ---->    Y.Doc
-       |               (Yjs room)                                  |
-     Y.Text                                                     Y.Text
-     /    \                                                     /    \
-CodeMirror  Asciidoctor.js                             CodeMirror  Asciidoctor.js
-                 |                                                      |
-debounced PUT   sandboxed iframe                        debounced PUT  sandboxed iframe
-      |
-SQLite (node:sqlite)
+   browser A                       room owner                    browser B
+     Y.Doc  <---- ws://…/collab/<id> ----+---- ws://…/collab/<id> ----> Y.Doc
+       |                                 |                               |
+     Y.Text                         server Y.Doc                       Y.Text
+     /    \                              |                            /    \
+CodeMirror  Asciidoctor.js         debounced snapshot       Asciidoctor.js  CodeMirror
+                 |                       |                         |
+          sandboxed iframe          SQLite or D1          sandboxed iframe
 ```
-
-The AsciiDoc source string is the canonical document. Rendered HTML is
-derived, disposable state: every browser converts its own synchronized
-`Y.Text` locally, and HTML is never persisted or transmitted.
 
 ## Yjs document model
 
 The live source in the browser is a `Y.Text` (`ydoc.getText('source')`),
 bound to CodeMirror 6 with `y-codemirror.next`'s `yCollab` — there is no
-second canonical copy in any store or editor model. The preview and the
-autosaver subscribe to the `Y.Text` observer, so they react identically to
-keystrokes, programmatic transactions, and remote collaborators' edits.
+second canonical copy in any store or editor model. The preview subscribes to
+the `Y.Text` observer, so it reacts identically to keystrokes, programmatic
+transactions, and remote collaborators' edits.
 
 The `Y.UndoManager` does not track the provider's transaction origin, so
 undo reverts only this user's own edits — never remote edits or the
 content loaded from the server.
 
-## Collaboration transport (Phase 3)
+## Collaboration transport
 
 The asciiweave document ID is the Yjs room name: `/doc/<id>` collaborates
 through `ws://…/collab/<id>`. There is no second collaboration ID.
@@ -61,7 +159,7 @@ contact with document content is as opaque text, in two places:
   client never bootstraps text itself.
 - **Flush**: when the last client leaves, `writeState` persists the room.
 
-## Durable CRDT state (Phase 4.2)
+## Durable CRDT state
 
 The canonical Yjs document state is persisted in SQLite (`yjs_state`
 table) as an opaque encoded update, alongside — not replaced by — the
@@ -97,11 +195,11 @@ mixed-script edits, restore chains, and multi-peer divergence;
 `e2e/durability.spec.ts` SIGKILLs a real server repeatedly, mid-typing,
 and against a pre-CRDT legacy database.
 
-## One authoritative store (Phase 4.3)
+## One authoritative store
 
 The durable Yjs state is the single authoritative document store, and
-the collaboration path is its only writer. The Phase 1 client-side HTTP
-autosave (`PUT /api/documents/:id`) is gone — it was a second,
+the collaboration path is its only writer. The former client-side HTTP
+autosave (`PUT /api/documents/:id`) was removed because it was a second,
 competing writer that could diverge from the collaborative state. New
 documents get CRDT state at creation time (`POST` encodes the template
 into `yjs_state`), so plain-text seeding now only serves databases from
@@ -122,7 +220,7 @@ them. The accepted trade-off is that edits made while offline live only
 in the open tab until reconnect (a local persistence layer such as
 y-indexeddb would close that gap and can come later).
 
-## Presence (Phase 4.1)
+## Presence
 
 Names, colors, cursors, selections, and online status live exclusively in
 Yjs Awareness (`app/src/collaboration/presence.ts`). Awareness is
@@ -223,13 +321,6 @@ asciiweave origin. The Asciidoctor default stylesheet (vendored at
 the iframe document; application UI CSS is kept separate. Conversion runs
 with Asciidoctor's default `secure` safe mode, so `include::` does not read
 files.
-
-## Autosave
-
-`app/src/documents/save.ts` debounces PUTs (~750 ms), coalesces edits made
-while a save is in flight, and retries failures with the newest source. A
-`pagehide` listener flushes unsaved changes with a keepalive fetch. Save
-state is surfaced as `Saving… / Saved / Save failed (retrying)`.
 
 ## Serving model
 

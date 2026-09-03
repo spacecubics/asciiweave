@@ -63,8 +63,10 @@ npm run test:workers  # same storage contract against local D1 in workerd
 npm run test:e2e      # Playwright: real-browser end-to-end tests
 npm run typecheck     # tsc: Node/browser project + Workers project
 npm run lint          # ESLint
-npm run format        # Prettier
+npm run format:check  # Prettier validation without modifying files
 ```
+
+Run `npm run format` to rewrite supported files with Prettier.
 
 See `docs/testing.md` for test-suite structure, browser setup, coverage
 expectations, and the complete validation sequence.

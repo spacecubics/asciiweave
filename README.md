@@ -19,15 +19,10 @@ asciiweave has two server targets sharing the same application code:
 
 | Target              | Runtime         | Persistent database |
 | ------------------- | --------------- | ------------------- |
-| Local / on-premises | Node.js 26      | `node:sqlite` file  |
+| Local / on-premises | Node.js >= 26   | `node:sqlite` file  |
 | Cloudflare          | Workers runtime | D1 binding          |
 
 See `docs/deployment.md` for the Cloudflare staging/production workflow.
-
-## Requirements
-
-- Node.js >= 26 (`.nvmrc` pins the tested release; uses the built-in
-  `node:sqlite`)
 
 ## Development
 

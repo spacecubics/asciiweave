@@ -1,4 +1,4 @@
-# Deployment
+# Cloudflare deployment
 
 asciiweave has two server targets built from the same application code:
 
@@ -6,6 +6,10 @@ asciiweave has two server targets built from the same application code:
 | ------------------- | --------------- | ------------------ | ---------------------------- |
 | Local / on-premises | Node.js 26      | `node:sqlite` file | `server/src/index.ts`        |
 | Cloudflare          | Workers runtime | D1 (binding `DB`)  | `server/src/worker/index.ts` |
+
+This guide covers deployment of the Cloudflare target. The local target is
+included where its shared migrations or runtime differences affect that
+deployment.
 
 The browser never touches SQLite or D1; it talks only to the HTTP API
 and the `/collab/<id>` WebSocket. On Cloudflare, each document's

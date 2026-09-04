@@ -1,4 +1,4 @@
-# Cloudflare deployment
+# Space Cubics Cloudflare deployment
 
 asciiweave has two server targets built from the same application code:
 
@@ -7,15 +7,34 @@ asciiweave has two server targets built from the same application code:
 | Local / on-premises | Node.js >= 26   | `node:sqlite` file | `server/src/index.ts`        |
 | Cloudflare          | Workers runtime | D1 (binding `DB`)  | `server/src/worker/index.ts` |
 
-This guide covers deployment of the Cloudflare target. The local target is
-included where its shared migrations or runtime differences affect that
-deployment.
+This is the runbook for deploying asciiweave in the Space Cubics Cloudflare
+account. Its resource names, database IDs, domain, access policy, GitHub
+environments, and secrets are specific to that deployment. The local target is
+included where shared migrations or runtime differences affect the runbook.
 
 The browser never touches SQLite or D1; it talks only to the HTTP API
 and the `/collab/<id>` WebSocket. On Cloudflare, each document's
 WebSocket room is a `CollabRoom` Durable Object (the single writer for
 that document), and static assets are served by Workers Assets with SPA
 fallback. See [`architecture.md`](architecture.md) for the design.
+
+## Adapting the Cloudflare target
+
+An operator deploying asciiweave to another Cloudflare account must adapt the
+repository configuration before using this runbook:
+
+1. Create separate D1 databases for each desired environment.
+2. Replace the Worker names, D1 names and IDs, and environment entries in
+   `wrangler.jsonc`.
+3. Configure a `workers.dev` hostname or replace the custom-domain route with a
+   domain in the operator's account.
+4. Configure deployment credentials for that account and an independent
+   access-control policy for the application.
+5. Apply the shared migrations and deploy with an explicit `--env` value.
+
+Do not deploy the checked-in staging or production environments unchanged from
+another account. The remainder of this document describes the Space Cubics
+resources and policy.
 
 ## Cloudflare resources
 
@@ -42,7 +61,12 @@ manages the record itself.
 test pool, so a bare `wrangler deploy` cannot touch a real target —
 always pass `--env staging` or `--env production`.
 
-## Authentication
+## Deployment credentials and application access
+
+asciiweave itself does not authenticate users or authorize document access.
+Cloudflare Access protects <https://asciiweave.spacecubics.org> with an
+employee-only policy. The Access service token below is only for the automated
+health check; it is not application authentication.
 
 - **Local CLI**: `npx wrangler login` (OAuth, browser flow). Check with
   `npx wrangler whoami` — it must show the corporate account. Never use

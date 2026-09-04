@@ -103,8 +103,10 @@ build into the Worker.
 
 Use one numbered, immutable SQL migration series from `migrations/` for both
 SQLite and D1. Add migrations instead of editing files already applied to a
-deployed database. See [`deployment-cloudflare.md`](deployment-cloudflare.md)
-for environments, credentials, deployment, and rollback.
+deployed database. See [`deployment-node.md`](deployment-node.md) for operating
+the Node.js target and
+[`deployment-cloudflare.md`](deployment-cloudflare.md) for the Space Cubics
+Cloudflare environments, credentials, deployment, and rollback.
 
 ## Overall shape
 

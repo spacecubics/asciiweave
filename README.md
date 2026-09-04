@@ -22,12 +22,43 @@ asciiweave has two server targets sharing the same application code:
 | Local / on-premises | Node.js >= 26   | `node:sqlite` file  |
 | Cloudflare          | Workers runtime | D1 binding          |
 
+## Using asciiweave
+
+After starting either server target, open its base URL and:
+
+1. Select **New document** to create a document with a stable random URL.
+2. Edit AsciiDoc in the left pane and check the rendered preview on the right.
+3. Set a display name to make your cursor identifiable to collaborators.
+4. Share the complete `/doc/<id>` URL with another person who can access the
+   same deployment. Everyone at that URL edits the same document.
+
+The topbar reports `Synced`, `Connecting…`, or `Offline`. Do not close an
+offline tab with unshared edits: offline changes live only in that tab until it
+reconnects.
+
+There is not yet a visible download control. To download the current AsciiDoc
+source, open `/api/documents/<id>/source` on the same deployment.
+
+## Security and access
+
+asciiweave does not currently implement application-level authentication,
+authorization, document ownership, or read-only sharing. Anyone who can reach
+a deployment can create documents, and anyone who knows a document URL can
+view, edit, and export it. Random document IDs are not an access-control
+mechanism.
+
+Before exposing asciiweave beyond a trusted network, put the entire application
+behind an access-control gateway or authenticating reverse proxy. The Space
+Cubics deployment at <https://asciiweave.spacecubics.org> is protected by
+Cloudflare Access and is available only to Space Cubics employees.
+
 ## Documentation
 
 - [Behavioral requirements](docs/requirements.md)
 - [Architecture](docs/architecture.md)
 - [Testing](docs/testing.md)
-- [Cloudflare deployment](docs/deployment-cloudflare.md)
+- [Node.js deployment](docs/deployment-node.md)
+- [Space Cubics Cloudflare deployment](docs/deployment-cloudflare.md)
 
 ## Development
 
@@ -37,7 +68,8 @@ npm run dev
 ```
 
 `npm run dev` starts the API server on <http://localhost:8787> and the Vite
-dev server on <http://localhost:5173> (open the Vite URL; it proxies `/api`).
+dev server on <http://localhost:5173> (open the Vite URL; it proxies `/api` and
+`/collab`).
 
 ## Production build
 
@@ -47,6 +79,8 @@ npm start
 ```
 
 `npm start` serves the built app and the API on <http://localhost:8787>.
+See the [Node.js deployment guide](docs/deployment-node.md) before exposing it
+as a service.
 
 Configuration via environment variables:
 
@@ -56,9 +90,11 @@ Configuration via environment variables:
 | `ASCIIWEAVE_DB` | `data/asciiweave.db` | SQLite database location  |
 | `GIT_COMMIT`    | `dev`                | Reported by `/api/health` |
 
-(`.env.example` lists the same names.) The server applies pending SQL
-migrations from `migrations/` at startup; `npm run db:status` and
-`npm run db:migrate` run them by hand against `ASCIIWEAVE_DB`.
+The npm scripts read these variables from their process environment;
+`.env.example` lists the names but is not loaded automatically. The server
+applies pending SQL migrations from `migrations/` at startup; `npm run
+db:status` and `npm run db:migrate` run them by hand against
+`ASCIIWEAVE_DB`.
 
 ## Tests and checks
 

@@ -43,8 +43,10 @@ and commands belong in [`testing.md`](testing.md).
 - Preview rendering follows every `Y.Text` change, regardless of whether the
   transaction is local, programmatic, or remote.
 - Stale asynchronous conversions must never replace newer output.
-- Treat rendered document content as untrusted. Keep it in the sandboxed
-  iframe without `allow-scripts` or `allow-same-origin`.
+- Treat rendered document content as untrusted. Keep it in a sandboxed iframe
+  with `allow-same-origin` only so the application shell can inspect and
+  position it. Keep scripts disabled by both the sandbox and a restrictive
+  content security policy.
 - Do not allow arbitrary server-side `include::` access to the filesystem.
 
 ## Operations

@@ -71,6 +71,19 @@ test('preview internal links stay within the rendered document', async ({ page }
     .toBe('about:srcdoc#_second_section')
 })
 
+test('preview scripts remain disabled with parent DOM access', async ({ page }) => {
+  await createDoc(page)
+  await replaceSource(
+    page,
+    '= Script Test\n\n++++\n<script>parent.document.body.dataset.previewScript = "ran"</script>\n++++',
+  )
+
+  const preview = page.frameLocator('iframe.preview-frame')
+  await expect(preview.getByRole('heading', { name: 'Script Test' })).toBeVisible()
+  await expect(preview.locator('script')).toHaveCount(1)
+  await expect(page.locator('body')).not.toHaveAttribute('data-preview-script', 'ran')
+})
+
 test('edits reach the server automatically and survive a reload', async ({ page }) => {
   await createDoc(page)
   await replaceSource(page, '= Saved Title\n\nThis line must persist.')

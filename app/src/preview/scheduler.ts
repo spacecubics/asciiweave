@@ -10,9 +10,9 @@ export interface RenderScheduler {
 // conversion captures a generation number; a result is applied only if no
 // newer conversion has started since, so stale output can never overwrite a
 // newer render.
-export function createRenderScheduler(
-  convert: (source: string) => Promise<string>,
-  apply: (html: string) => void,
+export function createRenderScheduler<Output = string>(
+  convert: (source: string) => Promise<Output>,
+  apply: (output: Output) => void,
   onError: (error: unknown) => void,
   { debounceMs = 200 }: { debounceMs?: number } = {},
 ): RenderScheduler {

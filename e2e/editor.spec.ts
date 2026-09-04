@@ -138,3 +138,54 @@ test('rapid typing never leaves a stale preview', async ({ page }) => {
   await expect(preview.locator('body')).toContainText('final marker')
   await expect(preview.locator('body')).toContainText('line 20')
 })
+
+test('the divider resizes panes with pointer and keyboard controls', async ({ page }) => {
+  await createDoc(page)
+
+  const sourcePane = page.locator('#source-pane')
+  const divider = page.getByRole('separator', { name: 'Resize source and preview panes' })
+  const initialSource = await sourcePane.boundingBox()
+  const initialDivider = await divider.boundingBox()
+  expect(initialSource).not.toBeNull()
+  expect(initialDivider).not.toBeNull()
+  expect(initialDivider!.width).toBeGreaterThanOrEqual(24)
+  expect(await divider.evaluate((element) => getComputedStyle(element, '::after').width)).toBe(
+    '1px',
+  )
+  await expect(divider).toHaveAttribute('aria-orientation', 'vertical')
+
+  await page.mouse.move(
+    initialDivider!.x + initialDivider!.width / 2,
+    initialDivider!.y + initialDivider!.height / 2,
+  )
+  await page.mouse.down()
+  await page.mouse.move(initialDivider!.x + 120, initialDivider!.y + initialDivider!.height / 2)
+  await page.mouse.up()
+
+  await expect
+    .poll(async () => (await sourcePane.boundingBox())!.width)
+    .toBeGreaterThan(initialSource!.width + 80)
+  const draggedValue = Number(await divider.getAttribute('aria-valuenow'))
+  await divider.press('ArrowLeft')
+  await expect
+    .poll(async () => Number(await divider.getAttribute('aria-valuenow')))
+    .toBeLessThan(draggedValue)
+
+  await page.setViewportSize({ width: 600, height: 900 })
+  await expect(divider).toHaveAttribute('aria-orientation', 'horizontal')
+  await expect.poll(async () => (await divider.boundingBox())!.height).toBeGreaterThanOrEqual(24)
+  expect(await divider.evaluate((element) => getComputedStyle(element, '::after').height)).toBe(
+    '1px',
+  )
+  const narrowSource = await sourcePane.boundingBox()
+  await divider.press('ArrowDown')
+  await expect
+    .poll(async () => (await sourcePane.boundingBox())!.height)
+    .toBeGreaterThan(narrowSource!.height)
+
+  const resetDivider = await divider.boundingBox()
+  await divider.dblclick({
+    position: { x: resetDivider!.width / 2, y: resetDivider!.height / 2 },
+  })
+  await expect(divider).toHaveAttribute('aria-valuenow', '50')
+})

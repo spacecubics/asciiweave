@@ -32,6 +32,7 @@ Preserve coverage for:
 - concurrent edits, disconnection, reconnection, and convergence;
 - awareness rendering and cleanup;
 - source-to-preview scroll synchronization without weakening the iframe sandbox;
+- pointer, keyboard, and responsive pane resizing;
 - CRDT restoration, corrupt-state fallback, and restart durability;
 - plain `.adoc` export;
 - both Node and Cloudflare implementations.

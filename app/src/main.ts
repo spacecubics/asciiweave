@@ -11,6 +11,7 @@ import { connectCollaboration } from './collaboration/provider'
 import { createDocument, fetchDocument } from './documents/api'
 import { createLocalDocument, type LocalDocument } from './documents/ydoc'
 import { createEditor } from './editor/editor'
+import { createPaneResizer } from './layout/pane-resizer'
 import { createPreview } from './preview/preview'
 
 declare global {
@@ -90,18 +91,39 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
     </header>
     <main class="panes">
       <section id="source-pane" class="pane" aria-label="AsciiDoc source"></section>
+      <div
+        id="pane-resizer"
+        class="pane-resizer"
+        role="separator"
+        aria-label="Resize source and preview panes"
+        aria-controls="source-pane preview-pane"
+        aria-valuemin="20"
+        aria-valuemax="80"
+        tabindex="0"
+      ></div>
       <section id="preview-pane" class="pane" aria-label="Rendered preview"></section>
     </main>
   `
+  const panes = container.querySelector<HTMLElement>('.panes')
   const sourcePane = container.querySelector<HTMLElement>('#source-pane')
+  const paneResizer = container.querySelector<HTMLElement>('#pane-resizer')
   const previewPane = container.querySelector<HTMLElement>('#preview-pane')
   const syncState = container.querySelector<HTMLElement>('#sync-state')
   const userList = container.querySelector<HTMLElement>('#user-list')
   const userName = container.querySelector<HTMLInputElement>('#user-name')
-  if (!sourcePane || !previewPane || !syncState || !userList || !userName) {
+  if (
+    !panes ||
+    !sourcePane ||
+    !paneResizer ||
+    !previewPane ||
+    !syncState ||
+    !userList ||
+    !userName
+  ) {
     return
   }
 
+  createPaneResizer(panes, paneResizer)
   const preview = createPreview(previewPane)
 
   // The Y.Text is the live canonical source, synchronized with other

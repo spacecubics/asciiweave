@@ -324,6 +324,14 @@ This synchronization is intentionally one-way. The opaque, scriptless preview
 cannot expose its scroll position to the application, so manual preview
 scrolling does not move the source. The empty iframe sandbox remains unchanged.
 
+## Resizable pane layout
+
+The editor layout uses three CSS Grid tracks: source, separator, and preview.
+The separator adjusts fractional shares between 20% and 80%, keeping both panes
+available while the viewport changes size. At the existing 800 px responsive
+breakpoint, the same shares switch from columns to rows and the separator's
+pointer and keyboard axis changes with them.
+
 ## Serving model
 
 During browser-app development, users open the app through Vite (whose SPA

@@ -28,8 +28,9 @@ After starting either server target, open its base URL and:
 
 1. Select **New document** to create a document with a stable random URL.
 2. Edit AsciiDoc in the left pane and check the rendered preview on the right.
-3. Set a display name to make your cursor identifiable to collaborators.
-4. Share the complete `/doc/<id>` URL with another person who can access the
+3. Drag the separator, or focus it and use the arrow keys, to resize the panes.
+4. Set a display name to make your cursor identifiable to collaborators.
+5. Share the complete `/doc/<id>` URL with another person who can access the
    same deployment. Everyone at that URL edits the same document.
 
 The topbar reports `Synced`, `Connecting…`, or `Offline`. Do not close an
@@ -133,7 +134,6 @@ Possible future improvements include:
 - comments;
 - visible copy and `.adoc` download controls;
 - better AsciiDoc syntax highlighting;
-- resizable panes;
 - a document outline;
 - keyboard configuration and expanded Emacs-style CodeMirror bindings;
 - images and attachments;

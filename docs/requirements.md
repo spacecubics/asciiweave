@@ -15,6 +15,8 @@ and commands belong in [`testing.md`](testing.md).
   undo/redo, line wrapping, resizing, Unicode, and Japanese text.
 - Source text is preserved exactly.
 - The split source/preview layout remains usable on desktop and narrow screens.
+- The separator resizes the source and preview with pointer or keyboard input,
+  preserves a usable minimum for both panes, and adapts to the layout direction.
 - `GET /api/documents/<id>/source` exports current source as a `.adoc` file.
 - Document read and source-export requests for unknown IDs return `404`.
 

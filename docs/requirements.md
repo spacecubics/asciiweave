@@ -43,9 +43,12 @@ and commands belong in [`testing.md`](testing.md).
 - Preview rendering follows every `Y.Text` change, regardless of whether the
   transaction is local, programmatic, or remote.
 - Stale asynchronous conversions must never replace newer output.
+- Scrolling the source pane moves the preview to the corresponding rendered
+  block without smooth or queued motion. The latest source position wins when
+  scroll events arrive rapidly or reverse direction.
 - Treat rendered document content as untrusted. Keep it in a sandboxed iframe
-  with `allow-same-origin` only so the application shell can inspect and
-  position it. Keep scripts disabled by both the sandbox and a restrictive
+  with `allow-same-origin` only so the parent can synchronize its scroll
+  position. Keep scripts disabled by both the sandbox and a restrictive
   content security policy.
 - Do not allow arbitrary server-side `include::` access to the filesystem.
 

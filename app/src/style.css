@@ -95,7 +95,9 @@ body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns:
+    minmax(0, var(--source-pane-share, 1fr))
+    minmax(0, var(--preview-pane-share, 1fr));
 }
 
 .pane {
@@ -142,7 +144,9 @@ body {
 @media (max-width: 800px) {
   .panes {
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr;
+    grid-template-rows:
+      minmax(0, var(--source-pane-share, 1fr))
+      minmax(0, var(--preview-pane-share, 1fr));
   }
 
   #source-pane {

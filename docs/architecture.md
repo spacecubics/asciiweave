@@ -304,9 +304,11 @@ without a real converter.
 
 Document content is user-authored and treated as untrusted relative to the
 application shell. The rendered HTML goes into an `<iframe sandbox srcdoc>`
-with an empty sandbox attribute — neither `allow-scripts` nor
-`allow-same-origin` — so document content cannot execute script in the
-asciiweave origin. The Asciidoctor default stylesheet (vendored at
+with `allow-same-origin` but not `allow-scripts`. Same-origin access lets the
+application shell inspect and position the rendered document while its content
+remains unable to run scripts. A restrictive content security policy
+independently disables scripts and blocks nested frames, plugins, and form
+submission. The Asciidoctor default stylesheet (vendored at
 `app/src/preview/asciidoctor.css`, from `@asciidoctor/core`) is inlined into
 the iframe document; application UI CSS is kept separate. Conversion runs
 with Asciidoctor's default `secure` safe mode, so `include::` does not read

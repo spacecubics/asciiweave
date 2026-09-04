@@ -184,7 +184,9 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
   provider.awareness.on('change', renderPresence)
   renderPresence()
 
-  createEditor(sourcePane, local.ytext, local.undoManager, provider.awareness)
+  createEditor(sourcePane, local.ytext, local.undoManager, provider.awareness, (line, atEnd) =>
+    preview.scrollToSourceLine(line, atEnd),
+  )
   preview.renderNow(local.ytext.toString())
   window.__asciiweave = { ydoc: local.ydoc, ytext: local.ytext, provider }
 }

@@ -305,14 +305,21 @@ without a real converter.
 Document content is user-authored and treated as untrusted relative to the
 application shell. The rendered HTML goes into an `<iframe sandbox srcdoc>`
 with `allow-same-origin` but not `allow-scripts`. Same-origin access lets the
-application shell inspect and position the rendered document while its content
-remains unable to run scripts. A restrictive content security policy
-independently disables scripts and blocks nested frames, plugins, and form
-submission. The Asciidoctor default stylesheet (vendored at
+parent read source anchors and set an immediate scroll position without
+fragment navigation or queued smooth scrolling. A restrictive content
+security policy independently disables scripts and blocks nested frames,
+plugins, and form submission. The Asciidoctor default stylesheet (vendored at
 `app/src/preview/asciidoctor.css`, from `@asciidoctor/core`) is inlined into
 the iframe document; application UI CSS is kept separate. Conversion runs
 with Asciidoctor's default `secure` safe mode, so `include::` does not read
 files.
+
+Asciidoctor source maps provide line numbers for rendered blocks and table
+rows. Source scrolling finds the surrounding anchors and interpolates their
+document positions. Events are coalesced to one update per animation frame,
+and each update reads the latest requested line, so a rapid direction change
+cannot leave an older movement queued. Preview content and iframe resize
+events reapply the current source position after layout changes.
 
 ## Resizable pane layout
 

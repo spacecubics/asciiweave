@@ -27,6 +27,7 @@ export function createEditor(
   ytext: Y.Text,
   undoManager: Y.UndoManager,
   awareness: Awareness,
+  onScroll?: (line: number, atEnd: boolean) => void,
 ): EditorView {
   return new EditorView({
     parent: container,
@@ -43,6 +44,24 @@ export function createEditor(
       highlightActiveLine(),
       highlightSelectionMatches(),
       EditorView.lineWrapping,
+      EditorView.domEventHandlers({
+        scroll(_event, view) {
+          if (!onScroll) {
+            return
+          }
+
+          // CodeMirror's height coordinate starts below its document padding,
+          // while scrollTop includes that padding. Subtract it so a sliver of
+          // the preceding line cannot select the following source block.
+          const documentTop = view.scrollDOM.scrollTop - view.documentPadding.top
+          const firstVisible = view.lineBlockAtHeight(documentTop)
+          const line = view.state.doc.lineAt(firstVisible.from).number
+          const atEnd =
+            view.scrollDOM.scrollTop + view.scrollDOM.clientHeight >=
+            view.scrollDOM.scrollHeight - 1
+          onScroll(line, atEnd)
+        },
+      }),
       keymap.of([...yUndoManagerKeymap, ...defaultKeymap, ...searchKeymap]),
       // Passing awareness enables remote cursors and selections, drawn
       // from each collaborator's ephemeral `user` state (name + colors).

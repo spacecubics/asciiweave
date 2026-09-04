@@ -17,6 +17,34 @@ async function replaceSource(page: Page, source: string): Promise<void> {
   await page.keyboard.insertText(source)
 }
 
+async function scrollSourceToLine(page: Page, line: number): Promise<void> {
+  await page.locator('.cm-scroller').evaluate(async (scroller, targetLine) => {
+    const content = scroller.querySelector<HTMLElement>('.cm-content')
+    const renderedLine = content?.querySelector<HTMLElement>('.cm-line')
+    if (!content || !renderedLine) {
+      throw new Error('missing rendered CodeMirror line')
+    }
+
+    const lineHeight = renderedLine.getBoundingClientRect().height
+    const paddingTop = Number.parseFloat(getComputedStyle(content).paddingTop)
+    scroller.scrollTop = paddingTop + (targetLine - 1) * lineHeight
+    scroller.dispatchEvent(new Event('scroll'))
+    await new Promise(requestAnimationFrame)
+
+    // Fractional line heights accumulate error over a long document. Once
+    // CodeMirror has rendered the target, align its gutter line exactly.
+    const gutterLine = Array.from(
+      scroller.closest('.cm-editor')!.querySelectorAll<HTMLElement>('.cm-gutterElement'),
+    ).find((element) => element.textContent === String(targetLine))
+    if (!gutterLine) {
+      throw new Error('missing target CodeMirror gutter line')
+    }
+    scroller.scrollTop +=
+      gutterLine.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 1
+    scroller.dispatchEvent(new Event('scroll'))
+  }, line)
+}
+
 // There is no client-side save anymore: edits reach the server through
 // the collaboration socket and the API serves source derived from the
 // collaborative state. Wait until that derived source shows the marker.
@@ -71,7 +99,7 @@ test('preview internal links stay within the rendered document', async ({ page }
     .toBe('about:srcdoc#_second_section')
 })
 
-test('preview scripts remain disabled with parent DOM access', async ({ page }) => {
+test('preview scripts remain disabled with parent scroll access', async ({ page }) => {
   await createDoc(page)
   await replaceSource(
     page,
@@ -201,4 +229,188 @@ test('the divider resizes panes with pointer and keyboard controls', async ({ pa
     position: { x: resetDivider!.width / 2, y: resetDivider!.height / 2 },
   })
   await expect(divider).toHaveAttribute('aria-valuenow', '50')
+})
+
+test('source scrolling directly positions the script-disabled preview', async ({ page }) => {
+  await createDoc(page)
+  const source = Array.from(
+    { length: 40 },
+    (_, index) => `== Section ${index + 1}\n\nParagraph ${index + 1}.\n`,
+  ).join('\n')
+  await replaceSource(page, source)
+
+  const previewFrame = page.locator('iframe.preview-frame')
+  const preview = page.frameLocator('iframe.preview-frame')
+  await expect(preview.getByRole('heading', { name: 'Section 40' })).toBeVisible()
+  await expect(previewFrame).toHaveAttribute('sandbox', 'allow-same-origin')
+  await expect(preview.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveAttribute(
+    'content',
+    /script-src 'none'/,
+  )
+
+  const targetSection = 20
+  const targetLine = 1 + (targetSection - 1) * 4
+  const targetHeading = preview.getByRole('heading', { name: `Section ${targetSection}` })
+  await scrollSourceToLine(page, targetLine)
+  await expect
+    .poll(() => targetHeading.evaluate((heading) => Math.abs(heading.getBoundingClientRect().top)))
+    .toBeLessThan(2)
+
+  // Source synchronization sets the DOM scroll position, so it does not
+  // navigate the iframe or compete with fragment navigation used by links.
+  expect(
+    page
+      .frames()
+      .find((frame) => frame.parentFrame() === page.mainFrame())
+      ?.url(),
+  ).toBe('about:srcdoc')
+
+  await preview.locator('body').evaluate(() => scrollBy(0, 200))
+  await expect
+    .poll(() => targetHeading.evaluate((heading) => Math.abs(heading.getBoundingClientRect().top)))
+    .toBeGreaterThan(100)
+  await page.locator('.cm-scroller').evaluate((scroller) => {
+    scroller.dispatchEvent(new Event('scroll'))
+  })
+  await expect
+    .poll(() => targetHeading.evaluate((heading) => Math.abs(heading.getBoundingClientRect().top)))
+    .toBeLessThan(2)
+
+  // Late image loads and width changes can alter content above the target.
+  // Simulate that reflow and verify the current source position is reapplied.
+  await preview
+    .locator('p')
+    .first()
+    .evaluate((paragraph) => {
+      paragraph.style.height = '200px'
+    })
+  await expect
+    .poll(() => targetHeading.evaluate((heading) => Math.abs(heading.getBoundingClientRect().top)))
+    .toBeLessThan(2)
+})
+
+test('rapid direction reversals leave the preview at the latest source line', async ({ page }) => {
+  await createDoc(page)
+  const source = Array.from(
+    { length: 80 },
+    (_, index) => `== Section ${index + 1}\n\nParagraph ${index + 1}.\n`,
+  ).join('\n')
+  await replaceSource(page, source)
+
+  const preview = page.frameLocator('iframe.preview-frame')
+  await expect(preview.getByRole('heading', { name: 'Section 80' })).toBeVisible()
+
+  const targetSection = 35
+  const targetLine = 1 + (targetSection - 1) * 4
+  await page.locator('.cm-scroller').evaluate(async (scroller, finalLine) => {
+    const content = scroller.querySelector<HTMLElement>('.cm-content')
+    const renderedLine = content?.querySelector<HTMLElement>('.cm-line')
+    if (!content || !renderedLine) {
+      throw new Error('missing rendered CodeMirror line')
+    }
+
+    const lineHeight = renderedLine.getBoundingClientRect().height
+    const paddingTop = Number.parseFloat(getComputedStyle(content).paddingTop)
+    const finalTop = paddingTop + (finalLine - 1) * lineHeight
+    for (const top of [scroller.scrollHeight, 0, scroller.scrollHeight * 0.8, 0, finalTop]) {
+      scroller.scrollTop = top
+      scroller.dispatchEvent(new Event('scroll'))
+      await new Promise(requestAnimationFrame)
+    }
+
+    const gutterLine = Array.from(
+      scroller.closest('.cm-editor')!.querySelectorAll<HTMLElement>('.cm-gutterElement'),
+    ).find((element) => element.textContent === String(finalLine))
+    if (!gutterLine) {
+      throw new Error('missing final CodeMirror gutter line')
+    }
+    scroller.scrollTop +=
+      gutterLine.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 1
+    scroller.dispatchEvent(new Event('scroll'))
+  }, targetLine)
+
+  const targetHeading = preview.getByRole('heading', { name: `Section ${targetSection}` })
+  await expect
+    .poll(() => targetHeading.evaluate((heading) => Math.abs(heading.getBoundingClientRect().top)))
+    .toBeLessThan(2)
+  expect(
+    page
+      .frames()
+      .find((frame) => frame.parentFrame() === page.mainFrame())
+      ?.url(),
+  ).toBe('about:srcdoc')
+})
+
+test('reversing at a partly visible source line does not jump to the next block', async ({
+  page,
+}) => {
+  await createDoc(page)
+  const source = Array.from(
+    { length: 40 },
+    (_, index) => `[[block-${index + 1}]]\nParagraph ${index + 1}\n`,
+  ).join('\n')
+  await replaceSource(page, source)
+
+  const preview = page.frameLocator('iframe.preview-frame')
+  await expect(preview.getByText('Paragraph 40', { exact: true })).toBeVisible()
+
+  const sourceScroller = page.locator('.cm-scroller')
+  const finalTop = await sourceScroller.evaluate((scroller) => {
+    const gutterLine = Array.from(
+      scroller.closest('.cm-editor')!.querySelectorAll<HTMLElement>('.cm-gutterElement'),
+    ).find((element) => element.textContent === '4')
+    if (!gutterLine) {
+      throw new Error('missing target CodeMirror gutter line')
+    }
+    return (
+      scroller.scrollTop +
+      gutterLine.getBoundingClientRect().bottom -
+      scroller.getBoundingClientRect().top -
+      2
+    )
+  })
+  await sourceScroller.evaluate(async (scroller, targetTop) => {
+    scroller.scrollTop = targetTop + 40
+    scroller.dispatchEvent(new Event('scroll'))
+    await new Promise(requestAnimationFrame)
+
+    scroller.scrollTop = targetTop
+    scroller.dispatchEvent(new Event('scroll'))
+  }, finalTop)
+
+  const visiblePixels = await sourceScroller.evaluate((scroller) => {
+    const gutterLine = Array.from(
+      scroller.closest('.cm-editor')!.querySelectorAll<HTMLElement>('.cm-gutterElement'),
+    ).find((element) => element.textContent === '4')!
+    return gutterLine.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top
+  })
+  expect(visiblePixels).toBeGreaterThan(0)
+  expect(visiblePixels).toBeLessThan(3)
+
+  // Line 4 is the explicit anchor immediately before block 2; Asciidoctor's
+  // block source lines are 2 and 5. Interpolation must leave block 2 below
+  // the viewport top instead of selecting it early.
+  await expect
+    .poll(() => preview.locator('#block-2').evaluate((block) => block.getBoundingClientRect().top))
+    .toBeGreaterThan(5)
+})
+
+test('scrolling through a large table tracks its rendered rows', async ({ page }) => {
+  await createDoc(page)
+  const rows = Array.from(
+    { length: 40 },
+    (_, index) => `|Row ${index + 1}\n|Value ${index + 1}`,
+  ).join('\n')
+  await replaceSource(page, `= Large Table\n\n[cols="1,1"]\n|===\n${rows}\n|===\n\n== Next Section`)
+
+  const preview = page.frameLocator('iframe.preview-frame')
+  const targetRow = preview.getByText('Row 20', { exact: true }).locator('xpath=ancestor::tr')
+  await expect(targetRow).toBeVisible()
+
+  // The first table cell begins on line 5 and each two-cell row spans two
+  // source lines.
+  await scrollSourceToLine(page, 5 + (20 - 1) * 2)
+  await expect
+    .poll(() => targetRow.evaluate((row) => Math.abs(row.getBoundingClientRect().top)))
+    .toBeLessThan(2)
 })

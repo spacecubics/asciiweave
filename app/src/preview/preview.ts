@@ -1,6 +1,10 @@
-import { convert } from '@asciidoctor/core'
+import { load } from '@asciidoctor/core'
 import { createRenderScheduler, type RenderScheduler } from './scheduler'
 import asciidoctorCss from './asciidoctor.css?raw'
+
+interface RenderedPreview {
+  html: string
+}
 
 // The rendered document is user-authored and treated as untrusted relative
 // to the application shell. It is displayed in a sandboxed srcdoc iframe
@@ -18,9 +22,9 @@ export function createPreview(container: HTMLElement): RenderScheduler {
     `<body class="article"><div id="content">${body}</div></body></html>`
 
   return createRenderScheduler(
-    (source) => convert(source, { attributes: { showtitle: true } }) as Promise<string>,
-    (html) => {
-      iframe.srcdoc = page(html)
+    renderPreview,
+    (preview) => {
+      iframe.srcdoc = page(preview.html)
     },
     (error) => {
       const message = error instanceof Error ? error.message : String(error)
@@ -30,4 +34,9 @@ export function createPreview(container: HTMLElement): RenderScheduler {
       )
     },
   )
+}
+
+async function renderPreview(source: string): Promise<RenderedPreview> {
+  const document = await load(source, { attributes: { showtitle: true } })
+  return { html: await document.convert({ standalone: false }) }
 }

@@ -312,6 +312,14 @@ the iframe document; application UI CSS is kept separate. Conversion runs
 with Asciidoctor's default `secure` safe mode, so `include::` does not read
 files.
 
+## Resizable pane layout
+
+The editor layout uses three CSS Grid tracks: source, separator, and preview.
+The separator adjusts fractional shares between 20% and 80%, keeping both panes
+available while the viewport changes size. At the existing 800 px responsive
+breakpoint, the same shares switch from columns to rows and the separator's
+pointer and keyboard axis changes with them.
+
 ## Serving model
 
 During browser-app development, users open the app through Vite (whose SPA

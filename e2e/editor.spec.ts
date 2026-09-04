@@ -48,6 +48,29 @@ test('editing the source updates the rendered preview', async ({ page }) => {
   await expect(preview.locator('strong')).toHaveText('asciiweave')
 })
 
+test('preview internal links stay within the rendered document', async ({ page }) => {
+  await createDoc(page)
+  await replaceSource(
+    page,
+    '= Link Test\n:toc:\n\n== First Section\n\nFirst body.\n\n== Second Section\n\nSecond body.',
+  )
+
+  const preview = page.frameLocator('iframe.preview-frame')
+  const secondSectionLink = preview.getByRole('link', { name: 'Second Section' })
+  await expect(secondSectionLink).toBeVisible()
+  await secondSectionLink.click()
+
+  await expect(preview.locator('body')).toContainText('Second body.')
+  await expect
+    .poll(() =>
+      page
+        .frames()
+        .find((frame) => frame.parentFrame() === page.mainFrame())
+        ?.url(),
+    )
+    .toBe('about:srcdoc#_second_section')
+})
+
 test('edits reach the server automatically and survive a reload', async ({ page }) => {
   await createDoc(page)
   await replaceSource(page, '= Saved Title\n\nThis line must persist.')

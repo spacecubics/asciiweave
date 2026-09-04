@@ -13,8 +13,11 @@ export function createPreview(container: HTMLElement): RenderScheduler {
   iframe.title = 'AsciiDoc preview'
   container.appendChild(iframe)
 
+  // A srcdoc document otherwise resolves fragment-only links against the
+  // embedding app URL. Keep TOC and other internal links inside the preview.
   const page = (body: string): string =>
-    `<!doctype html><html><head><meta charset="utf-8"><style>${asciidoctorCss}</style></head>` +
+    `<!doctype html><html><head><meta charset="utf-8"><base href="about:srcdoc">` +
+    `<style>${asciidoctorCss}</style></head>` +
     `<body class="article"><div id="content">${body}</div></body></html>`
 
   return createRenderScheduler(

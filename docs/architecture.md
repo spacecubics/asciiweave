@@ -92,10 +92,10 @@ any of these packages.
 The Node and Cloudflare targets share the application, persistence contract,
 migrations, and CRDT codec:
 
-| Target              | Runtime            | Rooms                          | Database      |
-| ------------------- | ------------------ | ------------------------------ | ------------- |
-| Local / on-premises | Node.js >= 26      | In-process `y-websocket` rooms | `node:sqlite` |
-| Hosted              | Cloudflare Workers | Per-document Durable Objects   | D1            |
+| Target              | Runtime         | Rooms                          | Database      |
+| ------------------- | --------------- | ------------------------------ | ------------- |
+| Local / on-premises | Node.js >= 26   | In-process `y-websocket` rooms | `node:sqlite` |
+| Cloudflare          | Workers runtime | Per-document Durable Objects   | D1            |
 
 Keep runtime-specific dependencies at the composition roots. Shared modules
 must not accidentally bundle `node:sqlite`, `createRequire`, or the wrong Yjs
@@ -312,8 +312,10 @@ files.
 
 ## Serving model
 
-In development, Vite serves the app (SPA fallback makes `/doc/<id>` load
-`index.html`) and proxies `/api` to the Node server. In production, the Node
-server (Hono) serves the built `app/dist` assets itself and returns
-`index.html` for `/` and `/doc/:id`; the client fetches the document and
-shows a not-found page if the API returns 404.
+During browser-app development, users open the app through Vite (whose SPA
+fallback makes `/doc/<id>` load `index.html`), and Vite proxies `/api` and
+`/collab` to the Node.js server. When `app/dist/index.html` exists, the Node.js
+target serves the built assets itself and returns `index.html` for `/` and
+`/doc/:id`. The Cloudflare target serves the same built assets through Workers
+Assets. On either target, the client fetches the document and shows a
+not-found page if the API returns 404.

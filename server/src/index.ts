@@ -21,8 +21,9 @@ const app = createApp(store, codec, {
   commit: process.env.GIT_COMMIT,
 })
 
-// Serve the built browser app when it exists (production / e2e). During
-// development Vite serves the app instead and proxies /api here.
+// Serve the built browser app whenever it exists (for example, after
+// npm run build and in e2e tests). During browser-app development, users
+// open Vite instead; it proxies /api and /collab here.
 if (existsSync(join(appDist, 'index.html'))) {
   const indexHtml = readFileSync(join(appDist, 'index.html'), 'utf8')
   app.use('/assets/*', serveStatic({ root: appDist }))

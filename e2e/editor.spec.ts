@@ -115,3 +115,33 @@ test('rapid typing never leaves a stale preview', async ({ page }) => {
   await expect(preview.locator('body')).toContainText('final marker')
   await expect(preview.locator('body')).toContainText('line 20')
 })
+
+test('scrolling the source moves the preview while preserving its sandbox', async ({ page }) => {
+  await createDoc(page)
+  const source = Array.from(
+    { length: 30 },
+    (_, index) => `== Section ${index + 1}\n\nParagraph ${index + 1}.\n`,
+  ).join('\n')
+  await replaceSource(page, source)
+
+  const previewFrame = page.locator('iframe.preview-frame')
+  const preview = page.frameLocator('iframe.preview-frame')
+  await expect(preview.getByRole('heading', { name: 'Section 30' })).toBeVisible()
+  await expect(previewFrame).toHaveAttribute('sandbox', '')
+
+  await page.locator('.cm-scroller').evaluate((scroller) => {
+    scroller.scrollTop = 0
+    scroller.dispatchEvent(new Event('scroll'))
+  })
+  await expect.poll(() => preview.locator('body').evaluate(() => scrollY)).toBeLessThan(100)
+  const topScroll = await preview.locator('body').evaluate(() => scrollY)
+
+  await page.locator('.cm-scroller').evaluate((scroller) => {
+    scroller.scrollTop = scroller.scrollHeight
+    scroller.dispatchEvent(new Event('scroll'))
+  })
+
+  await expect
+    .poll(() => preview.locator('body').evaluate(() => scrollY))
+    .toBeGreaterThan(topScroll)
+})

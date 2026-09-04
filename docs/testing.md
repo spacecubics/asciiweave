@@ -31,6 +31,7 @@ Preserve coverage for:
 - local and remote preview updates and stale-render rejection;
 - concurrent edits, disconnection, reconnection, and convergence;
 - awareness rendering and cleanup;
+- source-to-preview scroll synchronization without weakening the iframe sandbox;
 - CRDT restoration, corrupt-state fallback, and restart durability;
 - plain `.adoc` export;
 - both Node and Cloudflare implementations.

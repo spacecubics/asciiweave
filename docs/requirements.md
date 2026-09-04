@@ -41,6 +41,8 @@ and commands belong in [`testing.md`](testing.md).
 - Preview rendering follows every `Y.Text` change, regardless of whether the
   transaction is local, programmatic, or remote.
 - Stale asynchronous conversions must never replace newer output.
+- Scrolling the source moves the preview to the nearest rendered block. Manual
+  preview scrolling does not move the source.
 - Treat rendered document content as untrusted. Keep it in the sandboxed
   iframe without `allow-scripts` or `allow-same-origin`.
 - Do not allow arbitrary server-side `include::` access to the filesystem.

@@ -312,6 +312,18 @@ the iframe document; application UI CSS is kept separate. Conversion runs
 with Asciidoctor's default `secure` safe mode, so `include::` does not read
 files.
 
+## Source-to-preview scroll synchronization
+
+Asciidoctor's source map identifies the source line where each rendered block
+starts. Before conversion, the browser assigns otherwise-unidentified blocks a
+render-local anchor ID. CodeMirror reports the first visible source line, and
+the preview follows the nearest preceding anchor using an `about:srcdoc`
+fragment navigation. Fragment replacement does not add browser history.
+
+This synchronization is intentionally one-way. The opaque, scriptless preview
+cannot expose its scroll position to the application, so manual preview
+scrolling does not move the source. The empty iframe sandbox remains unchanged.
+
 ## Serving model
 
 During browser-app development, users open the app through Vite (whose SPA

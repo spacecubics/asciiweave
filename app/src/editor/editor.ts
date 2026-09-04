@@ -27,6 +27,7 @@ export function createEditor(
   ytext: Y.Text,
   undoManager: Y.UndoManager,
   awareness: Awareness,
+  onScroll?: (line: number, atEnd: boolean) => void,
 ): EditorView {
   return new EditorView({
     parent: container,
@@ -43,6 +44,19 @@ export function createEditor(
       highlightActiveLine(),
       highlightSelectionMatches(),
       EditorView.lineWrapping,
+      EditorView.domEventHandlers({
+        scroll(_event, view) {
+          if (!onScroll) {
+            return
+          }
+          const firstVisible = view.lineBlockAtHeight(view.scrollDOM.scrollTop)
+          const line = view.state.doc.lineAt(firstVisible.from).number
+          const atEnd =
+            view.scrollDOM.scrollTop + view.scrollDOM.clientHeight >=
+            view.scrollDOM.scrollHeight - 1
+          onScroll(line, atEnd)
+        },
+      }),
       keymap.of([...yUndoManagerKeymap, ...defaultKeymap, ...searchKeymap]),
       // Passing awareness enables remote cursors and selections, drawn
       // from each collaborator's ephemeral `user` state (name + colors).

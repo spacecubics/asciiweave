@@ -134,7 +134,6 @@ Possible future improvements include:
 - comments;
 - visible copy and `.adoc` download controls;
 - better AsciiDoc syntax highlighting;
-- source/preview scroll synchronization;
 - a document outline;
 - keyboard configuration and expanded Emacs-style CodeMirror bindings;
 - images and attachments;

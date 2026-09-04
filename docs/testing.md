@@ -29,6 +29,7 @@ Preserve coverage for:
 - Unicode and Japanese round trips;
 - CodeMirror/`Y.Text` synchronization and Yjs-aware undo/redo;
 - local and remote preview updates and stale-render rejection;
+- source-to-preview scrolling, including rapid reversals and layout changes;
 - concurrent edits, disconnection, reconnection, and convergence;
 - awareness rendering and cleanup;
 - pointer, keyboard, and responsive pane resizing;

@@ -122,7 +122,8 @@ costs milliseconds per minute once the server can hibernate.
 
 ## Fix plan
 
-Not yet implemented. All required work is in the Worker target.
+Steps 1 through 4 are implemented in the Worker target. The staging measurement
+and promotion checks below remain required before production deployment.
 
 1. **Move `CollabRoom` to the WebSocket Hibernation API.** Replace `ws.accept()`
    with `this.state.acceptWebSocket(server)` and turn the `message`, `close`,

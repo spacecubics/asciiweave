@@ -278,12 +278,17 @@ reopening the store.
 - **One writer per document.** Where the Node target owns rooms in
   process memory, the Worker gives each document a `CollabRoom` Durable
   Object (`server/src/worker/room.ts`) speaking the y-websocket wire
-  protocol (sync + awareness) over `WebSocketPair`. It restores from D1
-  through the same corrupt-blob-tolerant `bindRoomState`, persists
-  debounced snapshots to D1 — never every keystroke — and flushes when
-  the last client leaves. The API's freshness rule (live room text over
-  persisted state) holds because the Worker asks the document's Object
-  for its current text.
+  protocol (sync + awareness) over `WebSocketPair`. Sockets use the
+  Durable Objects WebSocket Hibernation API, with the document name and
+  complete per-connection awareness state in socket attachments. A cold
+  wake restores D1 state and then attachment-backed presence behind
+  `blockConcurrencyWhile` before queued events run. A close event can omit
+  its already-closing socket from `getWebSockets()`, so close cleanup also
+  reads that socket's attachment directly. The Object persists debounced
+  snapshots to D1 — never every keystroke — and cancels that debounce
+  before flushing when the last client leaves. The API's freshness rule
+  (live room text over persisted state) holds because the Worker asks the
+  document's Object for its current text.
 
 Static assets are served by Workers Assets with SPA fallback; only
 `/api/*` and `/collab/*` reach the Worker (`run_worker_first`).

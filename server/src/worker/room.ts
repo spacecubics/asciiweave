@@ -243,14 +243,26 @@ export class CollabRoom {
     _reason: string,
     _wasClean: boolean,
   ): Promise<void> {
-    await this.loading
+    await this.loadForSocket(ws)
     await this.handleClose(ws)
   }
 
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
     console.error(`collab socket failed for ${this.docName}:`, error)
-    await this.loading
+    await this.loadForSocket(ws)
     await this.handleClose(ws, true)
+  }
+
+  private async loadForSocket(ws: WebSocket): Promise<void> {
+    if (this.loading) {
+      await this.loading
+      return
+    }
+    const attachment = readAttachment(ws)
+    if (!attachment) {
+      throw new Error('collab socket has no valid room attachment')
+    }
+    await this.load(attachment.docName)
   }
 
   private handleMessage(ws: WebSocket, data: string | ArrayBuffer): void {
@@ -283,11 +295,22 @@ export class CollabRoom {
 
   private async handleClose(ws: WebSocket, closeSocket = false): Promise<void> {
     const controlled = this.conns.get(ws)
-    if (!controlled) {
-      return
+    if (controlled) {
+      this.conns.delete(ws)
+      awarenessProtocol.removeAwarenessStates(this.awareness!, [...controlled], null)
+    } else {
+      // A close event may be what wakes the Object. In that case the runtime
+      // can omit the already-closing socket from getWebSockets(), so it was
+      // not part of constructor-time awareness restoration. Its attachment
+      // still contains the clocks needed to tell the remaining peers that
+      // those clients have left.
+      const attachment = readAttachment(ws)
+      if (attachment?.docName === this.docName && attachment.awarenessUpdate) {
+        this.broadcastAwarenessUpdate(
+          awarenessProtocol.modifyAwarenessUpdate(attachment.awarenessUpdate, () => null),
+        )
+      }
     }
-    this.conns.delete(ws)
-    awarenessProtocol.removeAwarenessStates(this.awareness!, [...controlled], null)
     if (closeSocket) {
       try {
         ws.close(1011, 'collaboration socket failed')

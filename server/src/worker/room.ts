@@ -39,29 +39,34 @@ export class CollabRoom {
     this.store = createD1Store(env.DB)
   }
 
+  private initialize(docName: string): Promise<void> {
+    this.docName = docName
+    const doc = new Y.Doc()
+    const awareness = new awarenessProtocol.Awareness(doc)
+    awareness.setLocalState(null)
+    awareness.on(
+      'update',
+      (changes: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
+        this.trackAwareness(changes, origin)
+        this.broadcastAwareness([...changes.added, ...changes.updated, ...changes.removed])
+      },
+    )
+    doc.on('update', (update: Uint8Array) => {
+      const encoder = encoding.createEncoder()
+      encoding.writeVarUint(encoder, MESSAGE_SYNC)
+      syncProtocol.writeUpdate(encoder, update)
+      this.broadcast(encoding.toUint8Array(encoder))
+    })
+    this.doc = doc
+    this.awareness = awareness
+    return bindRoomState(Y, this.store, docName, doc)
+  }
+
   private load(docName: string): Promise<void> {
     if (!this.loading) {
-      this.docName = docName
-      const doc = new Y.Doc()
-      this.awareness = new awarenessProtocol.Awareness(doc)
-      this.awareness.setLocalState(null)
-      this.awareness.on(
-        'update',
-        (changes: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
-          this.trackAwareness(changes, origin)
-          this.broadcastAwareness([...changes.added, ...changes.updated, ...changes.removed])
-        },
-      )
-      doc.on('update', (update: Uint8Array) => {
-        const encoder = encoding.createEncoder()
-        encoding.writeVarUint(encoder, MESSAGE_SYNC)
-        syncProtocol.writeUpdate(encoder, update)
-        this.broadcast(encoding.toUint8Array(encoder))
-      })
-      this.doc = doc
       // bindRoomState restores from D1 (corrupt-blob fallback included)
       // and wires the same debounced persistence as the Node server.
-      this.loading = bindRoomState(Y, this.store, docName, doc)
+      this.loading = this.initialize(docName)
     }
     return this.loading
   }
@@ -97,16 +102,19 @@ export class CollabRoom {
     ws.binaryType = 'arraybuffer'
     this.conns.set(ws, new Set())
     ws.addEventListener('message', (event) => {
-      try {
-        this.handleMessage(ws, event.data)
-      } catch (error) {
-        console.error(`collab message failed for ${this.docName}:`, error)
-      }
+      this.webSocketMessage(ws, event.data)
     })
-    const close = () => this.handleClose(ws)
-    ws.addEventListener('close', close)
-    ws.addEventListener('error', close)
+    ws.addEventListener('close', (event) => {
+      this.webSocketClose(ws, event.code, event.reason, event.wasClean)
+    })
+    ws.addEventListener('error', (event) => {
+      this.webSocketError(ws, event)
+    })
 
+    this.sendHandshake(ws)
+  }
+
+  private sendHandshake(ws: WebSocket): void {
     // Handshake: sync step 1 plus the current awareness states.
     const encoder = encoding.createEncoder()
     encoding.writeVarUint(encoder, MESSAGE_SYNC)
@@ -122,6 +130,22 @@ export class CollabRoom {
       )
       ws.send(encoding.toUint8Array(awarenessEncoder))
     }
+  }
+
+  webSocketMessage(ws: WebSocket, data: string | ArrayBuffer): void {
+    try {
+      this.handleMessage(ws, data)
+    } catch (error) {
+      console.error(`collab message failed for ${this.docName}:`, error)
+    }
+  }
+
+  webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): void {
+    this.handleClose(ws)
+  }
+
+  webSocketError(ws: WebSocket, _error: unknown): void {
+    this.handleClose(ws)
   }
 
   private handleMessage(ws: WebSocket, data: string | ArrayBuffer): void {
@@ -195,12 +219,13 @@ export class CollabRoom {
     if (changed.length === 0 || this.conns.size === 0) {
       return
     }
+    this.broadcastAwarenessUpdate(awarenessProtocol.encodeAwarenessUpdate(this.awareness!, changed))
+  }
+
+  private broadcastAwarenessUpdate(update: Uint8Array): void {
     const encoder = encoding.createEncoder()
     encoding.writeVarUint(encoder, MESSAGE_AWARENESS)
-    encoding.writeVarUint8Array(
-      encoder,
-      awarenessProtocol.encodeAwarenessUpdate(this.awareness!, changed),
-    )
+    encoding.writeVarUint8Array(encoder, update)
     this.broadcast(encoding.toUint8Array(encoder))
   }
 

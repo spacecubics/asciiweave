@@ -357,13 +357,31 @@ export class CollabRoom {
     }
     const controlledIds = [...controlled]
     const attachment: Attachment = { docName: this.docName, controlledIds }
+    let awarenessUpdate: Uint8Array | undefined
     if (controlledIds.length > 0) {
-      attachment.awarenessUpdate = awarenessProtocol.encodeAwarenessUpdate(
-        this.awareness!,
-        controlledIds,
-      )
+      awarenessUpdate = awarenessProtocol.encodeAwarenessUpdate(this.awareness!, controlledIds)
+      attachment.awarenessUpdate = awarenessUpdate
     }
-    ws.serializeAttachment(attachment)
+    try {
+      ws.serializeAttachment(attachment)
+    } catch (error) {
+      // Attachments have a hard 16,384-byte limit. A compact tombstone keeps
+      // the client clocks needed for close cleanup even when an unusually
+      // large live presence payload cannot be snapshotted across hibernation.
+      console.error(`awareness attachment too large for ${this.docName}:`, error)
+      try {
+        ws.serializeAttachment({
+          docName: this.docName,
+          controlledIds,
+          awarenessUpdate: awarenessUpdate
+            ? awarenessProtocol.modifyAwarenessUpdate(awarenessUpdate, () => null)
+            : undefined,
+        } satisfies Attachment)
+      } catch (fallbackError) {
+        console.error(`failed to serialize collab attachment for ${this.docName}:`, fallbackError)
+        void this.handleClose(ws, true)
+      }
+    }
   }
 
   private broadcastAwareness(changed: number[]): void {

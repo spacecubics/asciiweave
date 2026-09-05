@@ -60,6 +60,7 @@ Cloudflare Access and is available only to Space Cubics employees.
 - [Testing](docs/testing.md)
 - [Node.js deployment](docs/deployment-node.md)
 - [Space Cubics Cloudflare deployment](docs/deployment-cloudflare.md)
+- [Durable Objects duration: incident and fix plan](docs/durable-objects-duration.md)
 
 ## Development
 

@@ -12,6 +12,10 @@ type YDoc = YTypes.Doc
 
 export const PERSIST_DEBOUNCE_MS = 1000
 
+export interface RoomBindingControl {
+  cancelPendingPersist(): void
+}
+
 // Seed a freshly created room with the persisted source, exactly once.
 // Seeding on the server instead of in each client means two browsers
 // opening the same document cannot both insert the initial content.
@@ -47,13 +51,13 @@ export async function persistRoom(
 // path for documents that predate CRDT persistence. Afterwards, every
 // room update re-persists the state (debounced), so durability does not
 // depend on a graceful shutdown or on the last client leaving.
-export async function bindRoomState(
+export async function bindRoomStateWithControl(
   Y: YModule,
   store: DocumentStore,
   docName: string,
   ydoc: YDoc,
   debounceMs: number = PERSIST_DEBOUNCE_MS,
-): Promise<void> {
+): Promise<RoomBindingControl> {
   const stored = await store.getYjsState(docName)
   let restored = false
   if (stored) {
@@ -74,11 +78,13 @@ export async function bindRoomState(
   const cancel = () => {
     if (timer !== undefined) {
       clearTimeout(timer)
+      timer = undefined
     }
   }
   ydoc.on('update', () => {
     cancel()
     timer = setTimeout(() => {
+      timer = undefined
       // A failed write (disk full, closed store) must not crash the
       // process from inside a timer; the next update retries anyway.
       persistRoom(Y, store, docName, ydoc).catch((error: unknown) => {
@@ -87,4 +93,18 @@ export async function bindRoomState(
     }, debounceMs)
   })
   ydoc.on('destroy', cancel)
+  return { cancelPendingPersist: cancel }
+}
+
+// Most room users only need restore plus debounced persistence. Keep the
+// original void-returning API for the Node target; the Worker uses the
+// controlled variant so a last-client flush can cancel its pending timer.
+export async function bindRoomState(
+  Y: YModule,
+  store: DocumentStore,
+  docName: string,
+  ydoc: YDoc,
+  debounceMs: number = PERSIST_DEBOUNCE_MS,
+): Promise<void> {
+  await bindRoomStateWithControl(Y, store, docName, ydoc, debounceMs)
 }

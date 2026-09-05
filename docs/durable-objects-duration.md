@@ -123,7 +123,8 @@ costs milliseconds per minute once the server can hibernate.
 ## Fix plan
 
 Steps 1 through 4 are implemented in the Worker target. The staging measurement
-and promotion checks below remain required before production deployment.
+and promotion checks passed on 2026-09-05; the results are recorded below.
+Production deployment remains a separate promotion step.
 
 1. **Move `CollabRoom` to the WebSocket Hibernation API.** Replace `ws.accept()`
    with `this.state.acceptWebSocket(server)` and turn the `message`, `close`,
@@ -341,6 +342,79 @@ Deploy only to staging, record the uploaded commit in `GIT_COMMIT`, perform the
 controlled runs, and review Durable Object errors and duration graphs before
 allowing the production workflow to promote the change. Do not use production
 documents or production traffic as the benchmark.
+
+## Staging measurement results
+
+The controlled staging run on 2026-09-05 compared pre-fix commit `22d92da`
+with fixed commit `e3cfc17`. The browser host was in Tokyo, Japan. Every idle
+case used a new document containing the 50-byte initial source, and every
+browser context reported `visible`, connected, and `Synced` for the complete
+run.
+
+The one-browser baseline ran from 08:31:45 to 09:01:45 UTC. The matching
+post-fix run ran from 09:03:59 to 09:33:59 UTC:
+
+| Measurement               | Pre-fix      | Post-fix   | Change        |
+| ------------------------- | ------------ | ---------- | ------------- |
+| Billed active time        | 1,815.762 s  | 6.086 s    | 99.6648% less |
+| Duration                  | 232.418 GB-s | 0.779 GB-s | 99.6648% less |
+| Maximum connected sockets | 1            | 1          | unchanged     |
+| Connection transitions    | 0            | 0          | unchanged     |
+
+The post-fix result is below the 90-second investigation threshold and exceeds
+the required 95% reduction. Its minute series consists of short awareness
+handler executions rather than continuous 60-second residency. The Object had
+no analytics rows after its last socket closed, confirming that duration
+stopped accumulating.
+
+Two ten-minute scaling controls also remained hibernateable:
+
+| Workload                             | Objects | Active time |
+| ------------------------------------ | ------- | ----------- |
+| Two browsers on one document         | 1       | 2.605 s     |
+| One browser on each of two documents | 2       | 3.757 s     |
+
+The second case approximately doubles per-message Object and D1 work without
+reintroducing wall-clock residency. The same-document case increases message
+volume while retaining one Object and one cold-load cadence.
+
+Latency was measured between two independent browser contexts. Each document
+had 30 warm samples and 20 cold samples. A temporary staging-only constructor
+marker confirmed a distinct Object instance with both socket attachments
+restored for every one of the 40 cold samples. The marker was never committed
+and the exact `e3cfc17` build was redeployed afterward.
+
+| Document                   | Warm median | Warm p95 | Cold median | Cold p95 | Worst cold |
+| -------------------------- | ----------- | -------- | ----------- | -------- | ---------- |
+| Initial source (50 B)      | 26 ms       | 34 ms    | 74 ms       | 78 ms    | 80 ms      |
+| Generated source (150 KiB) | 25 ms       | 33 ms    | 186 ms      | 434 ms   | 437 ms     |
+
+Both cases passed the latency gates, converged exactly, and had no false
+`Offline` or reconnect transition. Across both latency windows, analytics
+reported 175 D1 rows read and the constructor marker recorded 40 cold room
+loads; this total also includes document setup and persistence queries.
+
+The staging functional checks produced these results:
+
+- idle and simultaneous cold-wake edits converged exactly;
+- a newly joining collaborator received complete presence in 912 ms;
+- a disconnected collaborator disappeared from presence in 85 ms;
+- document JSON and plain-source export returned current source across a wake;
+- the last-client flush advanced persistence revision from 4 to 5, and it
+  remained 5 after the debounce window; and
+- the final exact-build smoke test passed with 35 ms warm p95, 94 ms cold p95,
+  exact convergence, and no connection-state transitions.
+
+Cloudflare's invocation aggregate reported `errors` in WebSocket connection
+setup buckets, including one for the pre-fix one-browser baseline. The count
+scaled with connection setup, while every captured constructor event had an
+`ok` outcome and no exception, and every browser check passed. The results
+therefore show no runtime error attributable to hibernation.
+
+All pre-deployment checks passed: formatting, lint, type checking, 67 unit
+tests, 17 Worker tests, and the production browser build. Staging finished on
+the exact committed `e3cfc17b4285afe0fb0c9f329ddc1b8d34540288` build. No
+production traffic or deployment was used for these measurements.
 
 ## Effect on the Node target
 

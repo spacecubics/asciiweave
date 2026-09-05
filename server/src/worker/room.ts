@@ -13,17 +13,48 @@ import { createD1Store } from '../persistence/d1'
 import type { DocumentStore } from '../persistence/store'
 
 // Durable Object speaking the y-websocket wire protocol (sync +
-// awareness) for one document room. One Object per document ID — the
-// single writer for that document's durable state, mirroring the Node
-// server where one process owns each in-memory room. State is restored
-// from D1 on first use and re-persisted debounced via the shared
-// room-binding logic, so durability does not depend on clients leaving
-// cleanly. This bundle uses the ESM yjs build throughout; the CJS
-// constraint only exists on the Node target (see collaboration/state.ts).
+// awareness) for one document room. WebSockets are accepted through the
+// Hibernation API, so an idle room can leave memory without disconnecting
+// browsers. D1 and socket attachments rebuild all in-memory state on wake.
 
 // y-websocket message types.
 const MESSAGE_SYNC = 0
 const MESSAGE_AWARENESS = 1
+
+interface Attachment {
+  docName: string
+  controlledIds: number[]
+  awarenessUpdate?: Uint8Array
+}
+
+interface AttachedSocket {
+  ws: WebSocket
+  attachment: Attachment
+}
+
+function readAttachment(ws: WebSocket): Attachment | undefined {
+  const value: unknown = ws.deserializeAttachment()
+  if (typeof value !== 'object' || value === null) {
+    return undefined
+  }
+  const candidate = value as Partial<Attachment>
+  if (
+    typeof candidate.docName !== 'string' ||
+    !Array.isArray(candidate.controlledIds) ||
+    !candidate.controlledIds.every((id) => typeof id === 'number')
+  ) {
+    return undefined
+  }
+  const update = candidate.awarenessUpdate
+  if (update !== undefined && !(update instanceof Uint8Array)) {
+    return undefined
+  }
+  return {
+    docName: candidate.docName,
+    controlledIds: candidate.controlledIds,
+    awarenessUpdate: update,
+  }
+}
 
 export class CollabRoom {
   private store: DocumentStore
@@ -42,13 +73,81 @@ export class CollabRoom {
     env: Env,
   ) {
     this.store = createD1Store(env.DB)
+
+    const sockets = this.attachedSockets()
+    const first = sockets[0]
+    if (first) {
+      // Hibernation erases memory but retains accepted sockets. Rebuild the
+      // document and presence before the runtime delivers the event that
+      // woke this Object.
+      this.loading = this.state.blockConcurrencyWhile(() =>
+        this.initialize(first.attachment.docName, sockets),
+      )
+    }
   }
 
-  private async initialize(docName: string): Promise<void> {
+  private attachedSockets(): AttachedSocket[] {
+    const sockets: AttachedSocket[] = []
+    for (const ws of this.state.getWebSockets()) {
+      const attachment = readAttachment(ws)
+      if (!attachment) {
+        console.error('closing collab socket with a missing or invalid attachment')
+        try {
+          ws.close(1011, 'invalid room attachment')
+        } catch {
+          // already closed
+        }
+        continue
+      }
+      sockets.push({ ws, attachment })
+    }
+    return sockets
+  }
+
+  private async initialize(docName: string, sockets: AttachedSocket[]): Promise<void> {
     this.docName = docName
+
     const doc = new Y.Doc()
     const awareness = new awarenessProtocol.Awareness(doc)
+    // Awareness's expiry scan is useful in a conventional server but its
+    // interval prevents a Durable Object from hibernating. Socket close
+    // events remain the authority for removing presence here.
+    clearInterval(awareness._checkInterval)
     awareness.setLocalState(null)
+    this.doc = doc
+    this.awareness = awareness
+
+    for (const { ws, attachment } of sockets) {
+      if (attachment.docName !== docName) {
+        console.error(`closing collab socket for mismatched room ${attachment.docName}`)
+        try {
+          ws.close(1011, 'mismatched room attachment')
+        } catch {
+          // already closed
+        }
+        continue
+      }
+      this.conns.set(ws, new Set(attachment.controlledIds))
+    }
+
+    // Restore the Yjs document before installing its broadcast listener, so
+    // a cold wake does not replay the complete stored document to every peer.
+    this.binding = await bindRoomStateWithControl(Y, this.store, docName, doc)
+
+    // Attachments contain complete per-connection snapshots, not merely the
+    // last incremental update. Restore all of them before accepting queued
+    // messages or sending a handshake to a newly joining browser.
+    for (const { ws, attachment } of sockets) {
+      if (!this.conns.has(ws) || !attachment.awarenessUpdate) {
+        continue
+      }
+      try {
+        awarenessProtocol.applyAwarenessUpdate(awareness, attachment.awarenessUpdate, null)
+      } catch (error) {
+        console.error(`failed to restore awareness for ${docName}:`, error)
+      }
+    }
+
     awareness.on(
       'update',
       (changes: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
@@ -62,18 +161,16 @@ export class CollabRoom {
       syncProtocol.writeUpdate(encoder, update)
       this.broadcast(encoding.toUint8Array(encoder))
     })
-    this.doc = doc
-    this.awareness = awareness
-    this.binding = await bindRoomStateWithControl(Y, this.store, docName, doc)
   }
 
-  private load(docName: string): Promise<void> {
+  private async load(docName: string): Promise<void> {
     if (!this.loading) {
-      // bindRoomState restores from D1 (corrupt-blob fallback included)
-      // and wires the same debounced persistence as the Node server.
-      this.loading = this.initialize(docName)
+      this.loading = this.initialize(docName, [])
     }
-    return this.loading
+    await this.loading
+    if (this.docName !== docName) {
+      throw new Error(`room ${this.docName} cannot serve document ${docName}`)
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -101,20 +198,9 @@ export class CollabRoom {
   }
 
   private accept(ws: WebSocket): void {
-    ws.accept()
-    // The runtime's default binaryType is 'blob' (browser semantics);
-    // the wire protocol needs raw bytes.
-    ws.binaryType = 'arraybuffer'
+    this.state.acceptWebSocket(ws)
     this.conns.set(ws, new Set())
-    ws.addEventListener('message', (event) => {
-      this.webSocketMessage(ws, event.data)
-    })
-    ws.addEventListener('close', (event) => {
-      this.webSocketClose(ws, event.code, event.reason, event.wasClean)
-    })
-    ws.addEventListener('error', (event) => {
-      this.webSocketError(ws, event)
-    })
+    this.writeAttachment(ws)
 
     this.sendHandshake(ws)
   }
@@ -137,11 +223,17 @@ export class CollabRoom {
     }
   }
 
-  webSocketMessage(ws: WebSocket, data: string | ArrayBuffer): void {
+  async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer): Promise<void> {
     try {
+      await this.loading
       this.handleMessage(ws, data)
     } catch (error) {
       console.error(`collab message failed for ${this.docName}:`, error)
+      try {
+        ws.close(1011, 'room wake failed')
+      } catch {
+        // already closed
+      }
     }
   }
 
@@ -151,11 +243,14 @@ export class CollabRoom {
     _reason: string,
     _wasClean: boolean,
   ): Promise<void> {
+    await this.loading
     await this.handleClose(ws)
   }
 
-  async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
-    await this.handleClose(ws)
+  async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
+    console.error(`collab socket failed for ${this.docName}:`, error)
+    await this.loading
+    await this.handleClose(ws, true)
   }
 
   private handleMessage(ws: WebSocket, data: string | ArrayBuffer): void {
@@ -186,17 +281,19 @@ export class CollabRoom {
     }
   }
 
-  private async handleClose(ws: WebSocket): Promise<void> {
+  private async handleClose(ws: WebSocket, closeSocket = false): Promise<void> {
     const controlled = this.conns.get(ws)
     if (!controlled) {
       return
     }
     this.conns.delete(ws)
     awarenessProtocol.removeAwarenessStates(this.awareness!, [...controlled], null)
-    try {
-      ws.close()
-    } catch {
-      // already closed
+    if (closeSocket) {
+      try {
+        ws.close(1011, 'collaboration socket failed')
+      } catch {
+        // already closed
+      }
     }
     if (this.conns.size === 0) {
       // Cancel the debounce before the final write. Pending I/O keeps a
@@ -214,7 +311,10 @@ export class CollabRoom {
     changes: { added: number[]; updated: number[]; removed: number[] },
     origin: unknown,
   ): void {
-    const controlled = origin instanceof WebSocket ? this.conns.get(origin) : undefined
+    if (!(origin instanceof WebSocket)) {
+      return
+    }
+    const controlled = this.conns.get(origin)
     if (!controlled) {
       return
     }
@@ -224,6 +324,23 @@ export class CollabRoom {
     for (const id of changes.removed) {
       controlled.delete(id)
     }
+    this.writeAttachment(origin)
+  }
+
+  private writeAttachment(ws: WebSocket): void {
+    const controlled = this.conns.get(ws)
+    if (!controlled) {
+      return
+    }
+    const controlledIds = [...controlled]
+    const attachment: Attachment = { docName: this.docName, controlledIds }
+    if (controlledIds.length > 0) {
+      attachment.awarenessUpdate = awarenessProtocol.encodeAwarenessUpdate(
+        this.awareness!,
+        controlledIds,
+      )
+    }
+    ws.serializeAttachment(attachment)
   }
 
   private broadcastAwareness(changed: number[]): void {

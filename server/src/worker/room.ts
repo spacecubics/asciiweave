@@ -4,7 +4,11 @@ import * as awarenessProtocol from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import type { Env } from './env'
-import { bindRoomState, persistRoom } from '../collaboration/room-binding'
+import {
+  bindRoomStateWithControl,
+  persistRoom,
+  type RoomBindingControl,
+} from '../collaboration/room-binding'
 import { createD1Store } from '../persistence/d1'
 import type { DocumentStore } from '../persistence/store'
 
@@ -25,6 +29,7 @@ export class CollabRoom {
   private store: DocumentStore
   private doc?: Y.Doc
   private awareness?: awarenessProtocol.Awareness
+  private binding?: RoomBindingControl
   private loading?: Promise<void>
   // Awareness client IDs controlled by each connection, so a closing
   // connection's presence disappears immediately (same bookkeeping as
@@ -39,7 +44,7 @@ export class CollabRoom {
     this.store = createD1Store(env.DB)
   }
 
-  private initialize(docName: string): Promise<void> {
+  private async initialize(docName: string): Promise<void> {
     this.docName = docName
     const doc = new Y.Doc()
     const awareness = new awarenessProtocol.Awareness(doc)
@@ -59,7 +64,7 @@ export class CollabRoom {
     })
     this.doc = doc
     this.awareness = awareness
-    return bindRoomState(Y, this.store, docName, doc)
+    this.binding = await bindRoomStateWithControl(Y, this.store, docName, doc)
   }
 
   private load(docName: string): Promise<void> {
@@ -140,12 +145,17 @@ export class CollabRoom {
     }
   }
 
-  webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): void {
-    this.handleClose(ws)
+  async webSocketClose(
+    ws: WebSocket,
+    _code: number,
+    _reason: string,
+    _wasClean: boolean,
+  ): Promise<void> {
+    await this.handleClose(ws)
   }
 
-  webSocketError(ws: WebSocket, _error: unknown): void {
-    this.handleClose(ws)
+  async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
+    await this.handleClose(ws)
   }
 
   private handleMessage(ws: WebSocket, data: string | ArrayBuffer): void {
@@ -176,7 +186,7 @@ export class CollabRoom {
     }
   }
 
-  private handleClose(ws: WebSocket): void {
+  private async handleClose(ws: WebSocket): Promise<void> {
     const controlled = this.conns.get(ws)
     if (!controlled) {
       return
@@ -189,13 +199,14 @@ export class CollabRoom {
       // already closed
     }
     if (this.conns.size === 0) {
-      // Last client left: flush immediately instead of waiting out the
-      // debounce, in case the Object is evicted while idle.
-      this.state.waitUntil(
-        persistRoom(Y, this.store, this.docName, this.doc!).catch((error: unknown) => {
-          console.error(`failed to flush room ${this.docName}:`, error)
-        }),
-      )
+      // Cancel the debounce before the final write. Pending I/O keeps a
+      // Durable Object active automatically; waitUntil has no effect here.
+      this.binding?.cancelPendingPersist()
+      try {
+        await persistRoom(Y, this.store, this.docName, this.doc!)
+      } catch (error) {
+        console.error(`failed to flush room ${this.docName}:`, error)
+      }
     }
   }
 
@@ -234,7 +245,7 @@ export class CollabRoom {
       try {
         conn.send(message)
       } catch {
-        this.handleClose(conn)
+        void this.handleClose(conn)
       }
     }
   }

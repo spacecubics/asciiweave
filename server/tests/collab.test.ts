@@ -32,6 +32,29 @@ describe('collaboration rooms', () => {
     expect(ydoc.getText('source').toString()).toBe('= Persisted\n')
   })
 
+  it('makes a legacy seed durable so a rebuilt room shares its history', async () => {
+    await store.create('abc', '= Legacy\n')
+    const first = new Y.Doc()
+    await bindRoomState(store, 'abc', first)
+    // A browser that synced from the first room holds the seed's items.
+    const browser = new Y.Doc()
+    Y.applyUpdate(browser, Y.encodeStateAsUpdate(first))
+
+    // The seed invents client IDs, so it must be persisted before any
+    // edit: a room rebuilt from storage (a Durable Object cold wake)
+    // has to restore exactly those items rather than seed new ones.
+    expect(await store.getYjsState('abc')).toBeDefined()
+    const rebuilt = new Y.Doc()
+    await bindRoomState(store, 'abc', rebuilt)
+    expect(Y.encodeStateVector(rebuilt)).toEqual(Y.encodeStateVector(first))
+
+    // Otherwise the browser's next edit references unknown items and the
+    // rebuilt room parks it as pending forever.
+    browser.getText('source').insert(browser.getText('source').length, 'edited')
+    Y.applyUpdate(rebuilt, Y.encodeStateAsUpdate(browser, Y.encodeStateVector(rebuilt)))
+    expect(rebuilt.getText('source').toString()).toBe('= Legacy\nedited')
+  })
+
   it('leaves rooms for unknown documents empty', async () => {
     const ydoc = new Y.Doc()
     await seedRoom(store, 'missing', ydoc)

@@ -223,6 +223,32 @@ describe('CollabRoom WebSocket hibernation', () => {
     )
   })
 
+  it('keeps a legacy document editable across an idle eviction', async () => {
+    // A document with only a plain-source row is seeded on first open.
+    // Every cold wake must restore that same seed, or an edit from the
+    // still-connected browser references items the room never saw.
+    const docName = 'legacy-idle-eviction'
+    const { store, stub } = await createRoom(docName, 'legacy text')
+    const first = await connect(stub, docName)
+    await expectEventually(() => {
+      expect(first.doc.getText('source').toString()).toBe('legacy text')
+    })
+
+    await evictDurableObject(stub)
+
+    first.doc.getText('source').insert(11, ' edited')
+    const second = await connect(stub, docName)
+    await expectEventually(() => {
+      expect(second.doc.getText('source').toString()).toBe('legacy text edited')
+    })
+    expect(await (await stub.fetch(`https://collab-room/source?doc=${docName}`)).text()).toBe(
+      'legacy text edited',
+    )
+    await expectEventually(async () => {
+      expect((await store.get(docName))?.source).toBe('legacy text edited')
+    })
+  }, 15_000)
+
   it('keeps the room usable when presence exceeds the attachment limit', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {

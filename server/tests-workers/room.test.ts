@@ -39,6 +39,11 @@ class TestClient {
       }
     })
     socket.accept()
+    // Like y-websocket, ask for the room's state so the seed arrives.
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, MESSAGE_SYNC)
+    syncProtocol.writeSyncStep1(encoder, this.doc)
+    socket.send(encoding.toUint8Array(encoder))
   }
 
   setPresence(name: string): void {
@@ -87,9 +92,9 @@ afterEach(() => {
   }
 })
 
-async function createRoom(name: string) {
+async function createRoom(name: string, source = '') {
   const store = createD1Store(env.DB)
-  await store.create(name, '')
+  await store.create(name, source)
   const stub = env.ROOMS.get(env.ROOMS.idFromName(name))
   return { store, stub }
 }

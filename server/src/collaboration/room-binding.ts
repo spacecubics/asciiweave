@@ -19,15 +19,22 @@ export interface RoomBindingControl {
 // Seed a freshly created room with the persisted source, exactly once.
 // Seeding on the server instead of in each client means two browsers
 // opening the same document cannot both insert the initial content.
-export async function seedRoom(store: DocumentStore, docName: string, ydoc: YDoc): Promise<void> {
+// Returns whether text was inserted.
+export async function seedRoom(
+  store: DocumentStore,
+  docName: string,
+  ydoc: YDoc,
+): Promise<boolean> {
   const doc = await store.get(docName)
   if (!doc) {
-    return
+    return false
   }
   const ytext = ydoc.getText('source')
-  if (ytext.length === 0) {
+  if (ytext.length === 0 && doc.source.length > 0) {
     ytext.insert(0, doc.source)
+    return true
   }
+  return false
 }
 
 // Persist the room's canonical CRDT state and the derived plain-text
@@ -70,8 +77,17 @@ export async function bindRoomStateWithControl(
       console.error(`corrupt Yjs state for ${docName}, falling back to plain source:`, error)
     }
   }
-  if (!restored) {
-    await seedRoom(store, docName, ydoc)
+  if (!restored && (await seedRoom(store, docName, ydoc))) {
+    // A seed invents the item identities that every synced browser then
+    // builds on. Persist it before any client sees it: a room rebuilt
+    // from storage (a Durable Object cold wake, a server restart) must
+    // restore those same items, not seed new ones that connected
+    // browsers' later edits could never attach to.
+    try {
+      await store.setYjsState(docName, Y.encodeStateAsUpdate(ydoc))
+    } catch (error) {
+      console.error(`failed to persist seed for ${docName}:`, error)
+    }
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined

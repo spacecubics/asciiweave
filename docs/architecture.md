@@ -271,6 +271,25 @@ runner (startup or `npm run db:migrate`) and by
 tests use temp files and prove restart survival by closing and
 reopening the store.
 
+### Retain D1 while reducing duplication
+
+Keep D1 as the Cloudflare target's document database for now. Durable
+Objects own live collaboration and write durable Yjs snapshots, document
+metadata, and the derived source cache to D1. Although `CollabRoom` is
+configured as a SQLite-backed Durable Object, it does not currently use
+its own storage for document persistence.
+
+This decision preserves the existing deployment, migration, and backup
+arrangements while maintenance work consolidates duplicated tests, SQL,
+and workflow steps. Moving persistence into Durable Objects would require
+a data migration; a cost benefit has not been established.
+
+Both Cloudflare and on-premises deployments remain required. Retain the
+current Node.js/SQLite on-premises target during this cleanup. Removing
+D1, replacing the Node.js runtime with standalone workerd, or unifying the
+collaboration implementations are separate architectural decisions, not
+prerequisites for reducing duplication.
+
 ## Cloudflare Worker target
 
 `server/src/worker/index.ts` is a second composition root over the same

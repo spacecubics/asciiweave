@@ -158,7 +158,13 @@ contact with document content is as opaque text, in two places:
   source into the room's `Y.Text` (guarded by an emptiness check).
   Seeding on the server instead of in each client means two browsers
   opening the same document cannot both insert the initial content — the
-  client never bootstraps text itself.
+  client never bootstraps text itself. A seed is persisted as CRDT state
+  right away, before any client syncs it. A room can be rebuilt from
+  storage while browsers that received the first seed stay connected (a
+  hibernated Durable Object wakes with empty memory), and a second seed
+  would invent new item identities that those browsers' later edits could
+  never attach to: the server would park them as pending forever, so a
+  newly opened tab would show the old text.
 - **Flush**: when the last client leaves, `writeState` persists the room.
 
 ## Durable CRDT state

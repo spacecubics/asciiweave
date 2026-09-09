@@ -33,9 +33,11 @@ Node.js checks and deployment workflows share
 before using this local composite action. It selects Node.js from `.nvmrc`,
 caches npm downloads, and runs `npm ci` separately in every job.
 
-Check names and validation commands are unchanged. Deployment workflows share
-only this setup; consolidating their deployment steps is tracked separately in
-[#22](https://github.com/spacecubics/asciiweave/issues/22).
+Deployment callers share `.github/workflows/deploy.yml` for validation, build,
+migration, deployment, and health checks. They retain separate triggers and
+concurrency groups; the production runner job retains its GitHub environment.
+See [the deployment runbook](deployment-cloudflare.md) for target and secret
+handling.
 
 ## Coverage expectations
 

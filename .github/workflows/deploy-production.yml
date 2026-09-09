@@ -17,51 +17,14 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-    environment: production
     if: github.repository == 'spacecubics/asciiweave'
-
-    steps:
-      - name: Checkout the code
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js and install dependencies
-        uses: ./.github/actions/setup-node
-
-      - name: Run checks
-        run: |
-          npm run typecheck
-          npm test
-          npm run test:workers
-
-      - name: Build the browser app
-        run: npm run build
-
-      - name: Migrate production D1 and deploy the production Worker
-        id: deploy
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Pin to the repository's Wrangler version.
-          packageManager: npm
-          preCommands: npx wrangler d1 migrations apply DB --remote --env production
-          command: deploy --env production --var GIT_COMMIT:${{ github.sha }}
-
-      - name: Production smoke test (non-destructive)
-        env:
-          ACCESS_ID: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_ID }}
-          ACCESS_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
-        run: |
-          url="https://asciiweave.spacecubics.org"
-          for i in $(seq 1 10); do
-            body=$(curl -sf \
-              -H "CF-Access-Client-Id: $ACCESS_ID" \
-              -H "CF-Access-Client-Secret: $ACCESS_SECRET" \
-              "$url/api/health") && break
-            sleep 3
-          done
-          echo "health: $body"
-          echo "$body" | grep -q '"ok":true'
-          echo "$body" | grep -q "${{ github.sha }}"
-          echo "Deployed commit ${{ github.sha }} to $url" >> "$GITHUB_STEP_SUMMARY"
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: production
+      smoke-test-url: https://asciiweave.spacecubics.org
+      smoke-test-access: true
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_ID }}
+      CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}

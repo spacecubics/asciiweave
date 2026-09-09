@@ -1,0 +1,227 @@
+/* Git Docs sample: an original adaptation of the content-area appearance at
+   https://git-scm.com/docs/git-diff, inspected 2026-09-09.
+   The site's navigation/branding are not part of this document style.
+   Copy this file under a new name and rebuild to add your own style. */
+
+/* Colors and fonts. Family names use installed fallbacks; no font downloads. */
+body {
+  --accent: #f14e32;
+  --ink: #4e443c;
+  color: var(--ink);
+  background: #f0efe7;
+  --font-prose:
+    Adelle, 'Roboto Slab', 'DejaVu Serif', Georgia, 'Times New Roman', var(--font-japanese),
+    sans-serif;
+  --font-headings: var(--font-prose);
+  --font-code: Courier, var(--font-japanese), monospace;
+  font-family: var(--font-prose);
+}
+#content {
+  max-width: 54rem;
+  padding: 1.5rem;
+  background: #fcfcfa;
+  border: 1px solid #e2e0d8;
+  border-radius: 4px;
+}
+p,
+li,
+dd {
+  line-height: 1.5;
+}
+p {
+  margin-bottom: 0.8em;
+}
+
+/* Headings retain the author's capitalization. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+#toctitle {
+  font-family: inherit;
+  color: var(--accent);
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 1.5em;
+  margin-bottom: 0.6em;
+}
+h1,
+#content > h1:first-child {
+  font-size: 1.9rem;
+  color: var(--accent);
+}
+h2 {
+  font-size: 1.35rem;
+}
+/* Smaller headings need normal-text contrast against the content panel. */
+h3,
+h4,
+h5,
+h6 {
+  color: #bd321b;
+}
+h3 {
+  font-size: 1.15rem;
+}
+h4,
+h5,
+h6 {
+  font-size: 1rem;
+}
+.sect1 + .sect1 {
+  border-top: none;
+}
+a {
+  color: #007e98;
+  text-decoration: underline;
+}
+strong,
+b {
+  font-weight: 700;
+}
+
+/* Code, synopsis, and option descriptions. */
+code,
+pre,
+kbd,
+dt {
+  font-family: var(--font-code);
+}
+:not(pre) > code {
+  color: #bd321b;
+  background: #fff;
+  border: 1px solid #eeece5;
+  border-radius: 2px;
+}
+.literalblock pre,
+.listingblock pre,
+.literalblock pre:not(.highlight),
+.listingblock pre:not(.highlight) {
+  background: #fcfcfa;
+  border: 1px solid #eeece5;
+  padding: 1em;
+  border-radius: 3px;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+pre code {
+  color: inherit;
+}
+dt {
+  font-weight: 700;
+}
+dd {
+  margin-left: 1em;
+}
+
+/* Figures, tables, and admonitions extend the manual's visual vocabulary. */
+.imageblock > .title,
+table.tableblock > caption.title,
+.listingblock > .title,
+.literalblock > .title {
+  font-family: inherit;
+  color: var(--ink);
+  font-style: normal;
+  font-size: 0.9rem;
+}
+table.tableblock {
+  border-color: #d8d5cb;
+}
+table.tableblock > * > tr > * {
+  border-color: #e2e0d8;
+}
+table.tableblock thead,
+table.tableblock thead tr {
+  background: #eeece5;
+}
+table.tableblock tbody tr:nth-child(even) {
+  background: #f7f6f1;
+}
+.admonitionblock > table td.content {
+  border-left: 2px solid #d8d5cb;
+  color: var(--ink);
+}
+.admonitionblock td.icon i[class]::before {
+  content: attr(title);
+  font: bold 0.85rem/1.2 var(--font-headings);
+  text-shadow: none;
+  color: var(--ink);
+}
+#toc {
+  background: #f7f6f1;
+  border-color: #e2e0d8;
+}
+#toc ul {
+  font-family: inherit;
+}
+
+/* Print uses the same content styling, without the screen's surrounding panel. */
+@page {
+  size: A4 portrait;
+  margin: 18mm;
+}
+@media print {
+  html {
+    font-size: 10pt;
+  }
+  body {
+    background: #fff;
+    print-color-adjust: exact;
+  }
+  #content {
+    max-width: none;
+    padding: 0;
+    border: 0;
+    background: #fff;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    break-after: avoid;
+  }
+  pre,
+  tr,
+  img {
+    break-inside: avoid;
+  }
+  .listingblock,
+  .literalblock,
+  table.tableblock {
+    break-inside: auto;
+  }
+  pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  table.tableblock {
+    width: 100%;
+    table-layout: fixed;
+  }
+  thead {
+    display: table-header-group;
+  }
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: #bd321b;
+  }
+  a,
+  a:visited {
+    color: #007e98 !important;
+  }
+  a[href]::after {
+    content: none !important;
+  }
+}

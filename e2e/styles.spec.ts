@@ -22,6 +22,16 @@ test('styles preserve content, fonts, source, and the Asciidoctor baseline', asy
     'background-color',
     'rgb(227, 228, 232)',
   )
+  await select.selectOption('git-docs')
+  await expect(heading).toHaveCSS('color', 'rgb(241, 78, 50)')
+  await expect(frame.locator('pre').first()).toHaveCSS(
+    'font-family',
+    /^Courier, IPAGothic,.*monospace$/,
+  )
+  await expect(frame.locator('table.tableblock thead')).toHaveCSS(
+    'background-color',
+    'rgb(238, 236, 229)',
+  )
   await select.selectOption('default')
   await expect(heading).toHaveCSS('color', currentColor)
   await expect(heading).toHaveCSS('font-family', currentFont)
@@ -91,15 +101,54 @@ test('sample styles use explicit Japanese fonts in headings, prose, and code', a
     await page.reload()
     await expect(preview.locator('h2')).toContainText('要求根拠')
     expect(await fonts()).toEqual(originalFonts)
-    await page.getByLabel('Preview style', { exact: true }).selectOption('space-cubics')
+    await page.getByLabel('Preview style', { exact: true }).selectOption('git-docs')
     expect(await fonts()).toEqual(originalFonts)
     await expect(preview.locator('html')).toHaveAttribute('lang', 'ja')
     await page.emulateMedia({ media: 'print' })
-    for (const style of ['space-cubics']) {
+    for (const style of ['space-cubics', 'git-docs']) {
       await page.getByLabel('Preview style', { exact: true }).selectOption(style)
       expect(await fonts()).toEqual(originalFonts)
     }
   } finally {
     await cdp.detach()
+  }
+})
+
+test('small Git Docs headings meet normal-text contrast', async ({ page }) => {
+  await createDoc(page)
+  await replaceSource(
+    page,
+    Array.from({ length: 6 }, (_, n) => `${'='.repeat(n + 1)} Heading ${n + 1}\n\nText.\n`).join(
+      '\n',
+    ),
+  )
+  await page.getByLabel('Preview style', { exact: true }).selectOption('git-docs')
+  const preview = page.frameLocator('.preview-frame')
+  await expect(preview.locator('h6')).toHaveText('Heading 6')
+  await expect(preview.locator('h2')).toHaveCSS('color', 'rgb(241, 78, 50)')
+  for (const media of ['screen', 'print'] as const) {
+    await page.emulateMedia({ media })
+    const ratios = await preview.locator('h3, h4, h5, h6').evaluateAll((headings) => {
+      const luminance = (color: string) => {
+        const channels = color
+          .match(/\d+/g)!
+          .slice(0, 3)
+          .map(Number)
+          .map((c) => {
+            const value = c / 255
+            return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+          })
+        return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722
+      }
+      const background = luminance(
+        getComputedStyle(document.querySelector('#content')!).backgroundColor,
+      )
+      return headings.map((heading) => {
+        const foreground = luminance(getComputedStyle(heading).color)
+        return (Math.max(background, foreground) + 0.05) / (Math.min(background, foreground) + 0.05)
+      })
+    })
+    expect(ratios).toHaveLength(4)
+    for (const ratio of ratios) expect(ratio).toBeGreaterThanOrEqual(4.5)
   }
 })

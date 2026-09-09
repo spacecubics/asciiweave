@@ -1,22 +1,8 @@
-import { expect, test, type Browser, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+import { getText, openPair } from './helpers'
 
 // Phase 4.1: awareness — names, colors, remote cursors/selections, and
 // the connected-user indicator, exercised with two real browsers.
-
-async function openPair(browser: Browser, baseURL: string) {
-  const ctxA = await browser.newContext()
-  const ctxB = await browser.newContext()
-  const pageA = await ctxA.newPage()
-  await pageA.goto(`${baseURL}/`)
-  await pageA.getByRole('button', { name: 'New document' }).click()
-  await pageA.waitForURL(/\/doc\/[A-Za-z0-9_-]+$/)
-  const pageB = await ctxB.newPage()
-  await pageB.goto(pageA.url())
-  for (const page of [pageA, pageB]) {
-    await expect(page.locator('.cm-content')).toContainText('Untitled Document')
-  }
-  return { pageA, pageB, ctxA, ctxB }
-}
 
 async function setName(page: Page, name: string): Promise<void> {
   await page.locator('#user-name').fill(name)
@@ -93,7 +79,7 @@ test('renaming propagates live and presence is never persisted', async ({ browse
     const res = await fetch(`/api/documents/${id}`)
     return ((await res.json()) as { source: string }).source
   })
-  const liveSource = await pageA.evaluate(() => window.__asciiweave?.ytext.toString())
+  const liveSource = await getText(pageA)
   expect(apiSource).toBe(liveSource)
   expect(apiSource).not.toContain('Rename')
   await ctxA.close()

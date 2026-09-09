@@ -1,21 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
+import { createDoc, replaceSource } from './helpers'
 
 const DOC_URL = /\/doc\/[A-Za-z0-9_-]+$/
-
-async function createDoc(page: Page): Promise<string> {
-  await page.goto('/')
-  await page.getByRole('button', { name: 'New document' }).click()
-  await page.waitForURL(DOC_URL)
-  // Content arrives via collaboration sync; wait for it before editing.
-  await expect(page.locator('.cm-content')).toContainText('Untitled Document')
-  return page.url()
-}
-
-async function replaceSource(page: Page, source: string): Promise<void> {
-  await page.locator('.cm-content').click()
-  await page.keyboard.press('ControlOrMeta+a')
-  await page.keyboard.insertText(source)
-}
 
 async function scrollSourceToLine(page: Page, line: number): Promise<void> {
   await page.locator('.cm-scroller').evaluate(async (scroller, targetLine) => {

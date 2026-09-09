@@ -13,6 +13,7 @@ import { createLocalDocument, type LocalDocument } from './documents/ydoc'
 import { createEditor } from './editor/editor'
 import { createPaneResizer } from './layout/pane-resizer'
 import { createPreview } from './preview/preview'
+import { previewStyles, resolveStyle, STYLE_KEY } from './preview/styles'
 import { browserPreferences } from './preferences'
 
 declare global {
@@ -88,6 +89,10 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
         <span id="user-list" class="user-list" aria-label="Connected users"></span>
         <input id="user-name" class="user-name" maxlength="24" aria-label="Your display name" />
       </div>
+      <div class="preview-controls">
+        <label for="preview-style-select">Preview style</label>
+        <select id="preview-style-select"></select>
+      </div>
       <span id="sync-state" class="sync-state" data-state="connecting">Connecting…</span>
     </header>
     <main class="panes">
@@ -105,6 +110,7 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
       <section id="preview-pane" class="pane" aria-label="Rendered preview"></section>
     </main>
   `
+  const styleSelect = container.querySelector<HTMLSelectElement>('#preview-style-select')!
   const panes = container.querySelector<HTMLElement>('.panes')
   const sourcePane = container.querySelector<HTMLElement>('#source-pane')
   const paneResizer = container.querySelector<HTMLElement>('#pane-resizer')
@@ -125,7 +131,15 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
   }
 
   createPaneResizer(panes, paneResizer)
-  const preview = createPreview(previewPane)
+  let style = resolveStyle(browserPreferences.getItem(STYLE_KEY))
+  styleSelect.replaceChildren(...previewStyles.map((entry) => new Option(entry.name, entry.id)))
+  styleSelect.value = style.id
+  const preview = createPreview(previewPane, style)
+  styleSelect.addEventListener('change', () => {
+    style = resolveStyle(styleSelect.value)
+    preview.setStyle(style)
+    browserPreferences.setItem(STYLE_KEY, style.id)
+  })
 
   // The Y.Text is the live canonical source, synchronized with other
   // browsers on the same document URL. Preview follows it through its

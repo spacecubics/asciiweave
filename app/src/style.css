@@ -182,3 +182,29 @@ body {
     transform: translateY(-50%);
   }
 }
+
+.preview-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+.preview-controls select {
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+  max-width: 100%;
+}
+.topbar {
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+@media (max-width: 800px) {
+  .preview-controls {
+    flex-basis: 100%;
+    order: 1;
+  }
+  .presence {
+    flex: 1;
+  }
+}

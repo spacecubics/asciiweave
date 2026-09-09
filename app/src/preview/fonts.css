@@ -1,0 +1,57 @@
+/* Shared font stacks keep Japanese glyph selection independent of generic
+   serif/sans-serif defaults and document language. IPAGothic was the actual
+   Japanese fallback used by the original preview in the inspected browser.
+   These are local font names; no fonts are downloaded. */
+:root {
+  --font-japanese:
+    'IPAGothic', 'IPAexGothic', 'Noto Sans CJK JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo;
+  --font-prose: 'Noto Serif', 'DejaVu Serif', var(--font-japanese), serif;
+  --font-headings: 'Open Sans', 'DejaVu Sans', var(--font-japanese), sans-serif;
+  --font-code: 'Droid Sans Mono', 'DejaVu Sans Mono', var(--font-japanese), monospace;
+}
+
+/* Match the baseline's font-bearing selectors without changing their sizes,
+   weights, spacing, or colors. Sample styles can override the stack variables. */
+body {
+  font-family: var(--font-prose);
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+#toctitle,
+.sidebarblock > .content > .title,
+#toc ul,
+.admonitionblock > table td.icon .title,
+.verseblock pre,
+.conum[data-value] {
+  font-family: var(--font-headings);
+}
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-code);
+}
+.admonitionblock td.content > .title,
+.audioblock > .title,
+.exampleblock > .title,
+.imageblock > .title,
+.listingblock > .title,
+.literalblock > .title,
+.stemblock > .title,
+.openblock > .title,
+.paragraph > .title,
+.quoteblock > .title,
+table.tableblock > .title,
+.verseblock > .title,
+.videoblock > .title,
+.dlist > .title,
+.olist > .title,
+.ulist > .title,
+.qlist > .title,
+.hdlist > .title {
+  font-family: var(--font-prose);
+}

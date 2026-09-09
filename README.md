@@ -37,7 +37,12 @@ The topbar reports `Synced`, `Connecting…`, or `Offline`. Do not close an
 offline tab with unshared edits: offline changes live only in that tab until it
 reconnects.
 
-There is not yet a visible download control. To download the current AsciiDoc
+Choose **Preview style** to switch between Asciidoctor, Space Cubics, Git Docs,
+and styles added by your site owner. **Print / Save as PDF** opens the browser
+print dialog for the current document and style. See [styles and PDF output](docs/preview-styles.md)
+for print settings and how to add a CSS file before deployment.
+
+There is not yet a visible source download control. To download the current AsciiDoc
 source, open `/api/documents/<id>/source` on the same deployment.
 
 ## Security and access
@@ -58,6 +63,7 @@ Cloudflare Access and is available only to Space Cubics employees.
 - [Behavioral requirements](docs/requirements.md)
 - [Architecture](docs/architecture.md)
 - [Testing](docs/testing.md)
+- [Preview styles and PDF output](docs/preview-styles.md)
 - [Node.js deployment](docs/deployment-node.md)
 - [Space Cubics Cloudflare deployment](docs/deployment-cloudflare.md)
 - [Durable Objects duration: incident and fix plan](docs/durable-objects-duration.md)

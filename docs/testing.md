@@ -103,3 +103,23 @@ npm run test:workers
 npm run build
 npm run test:e2e
 ```
+
+## Preview styles
+
+`app/tests/preferences.test.ts` covers unavailable storage and rejected
+operations. `app/tests/styles.test.ts` covers discovery, invalid/removed
+selections, language context, and CSS serialization.
+`e2e/description-lists.spec.ts` covers term/description traversal, including
+missing descriptions.
+
+`e2e/style-selection.spec.ts` covers preferences, collaboration, scrolling,
+language context, keyboard access, and script isolation. It uses two test
+styles created by `e2e/build.ts` and removed after building. Normal production
+builds do not include these styles.
+
+`e2e/styles.spec.ts` covers sample appearance, actual Japanese glyph fonts in
+screen and print modes, and print snapshot isolation and cleanup. Its fixture
+is `e2e/fixtures/styles.adoc`. Print-dialog interception checks prepared
+content without saving to the user's filesystem; actual browser PDF output
+and page breaks additionally need visual review with the settings in
+[preview-styles.md](preview-styles.md).

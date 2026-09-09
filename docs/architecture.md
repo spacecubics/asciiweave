@@ -368,3 +368,36 @@ target serves the built assets itself and returns `index.html` for `/` and
 `/doc/:id`. The Cloudflare target serves the same built assets through Workers
 Assets. On either target, the client fetches the document and shows a
 not-found page if the API returns 404.
+
+## Preview styles and print snapshots
+
+`app/src/preview/styles.ts` discovers site-owner CSS files through Vite's
+eager raw glob import. Filenames supply IDs and labels, avoiding an extra
+registration file. CSS is document presentation, confined to the iframe; it
+never enters Yjs or the shell's CSS. The browser stores only the selected
+ID. The baseline stylesheet remains unchanged and one extra stylesheet is
+replaced when a user selects another style. A pending iframe load reapplies
+the latest selection. Resize and font readiness events reapply the source
+position after reflow. Additional styles propagate source language to preview
+and print HTML. Asciidoctor preserves the original untagged HTML language
+context to retain the browser’s original font fallback behavior. Shared font
+rules for additional styles explicitly name Japanese sans-serif fallbacks
+before generic families. Asciidoctor uses its original font rules without
+these overrides; Space Cubics keeps the baseline Latin families, while Git
+Docs retains its reference site's Latin families. Style selection updates CSS
+and the corresponding language context.
+
+Printing separately converts a source/style snapshot captured at click time;
+it does not reuse a possibly stale debounced preview or keep following source
+updates. The dedicated offscreen iframe uses the same page builder and CSS,
+with `allow-same-origin allow-modals` for the parent's print call and no
+`allow-scripts`. The editing iframe remains `allow-same-origin` only. Print
+assets have a readiness deadline, and `afterprint` removes the document on
+completion/cancellation. Printing uses the browser dialog, not a PDF service.
+
+The render traversal flattens description-list term/description pairs
+(including missing descriptions) before visiting child blocks; these are not
+ordinary flat block arrays in Asciidoctor. This preserves preview conversion
+for option lists such as those used in Git manuals.
+
+See [preview styles](preview-styles.md) for style authoring and print limitations.

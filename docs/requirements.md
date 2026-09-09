@@ -52,6 +52,23 @@ and commands belong in [`testing.md`](testing.md).
   content security policy.
 - Do not allow arbitrary server-side `include::` access to the filesystem.
 
+## Preview styles and printing
+
+- The visible Preview style selector includes Asciidoctor, Space Cubics, Git Docs,
+  and CSS files added by the site owner before building/deploying.
+- Asciidoctor remains the default. Invalid or removed saved style IDs fall back to
+  Asciidoctor. Storage failures do not prevent editing or style selection.
+- Selection is a browser-local preference, separate from source and Awareness.
+- Switching styles preserves the content, source anchors, source scroll
+  correspondence, undo history, and plain-source export.
+- Print / Save as PDF prepares the latest source and selected style as a fixed
+  snapshot and opens the browser print dialog. Assets must be ready; preparation
+  failures appear in an alert region. Cancellation cleans up the print document.
+  Printing waits for the first synchronization, then remains available offline.
+- The print iframe permits modals for printing but keeps scripts disabled. The
+  editing preview retains its existing sandbox restrictions.
+- Cover pages and exact Ruby PDF pagination are outside the implemented scope.
+
 ## Operations
 
 - `GET /api/health` reports the running commit and verifies database access.

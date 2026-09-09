@@ -135,8 +135,24 @@ extensions. Connection setup such as WAL mode lives in
    `asciiweave` Worker, then smoke-tests `/api/health` through Cloudflare
    Access. A `pull_request` event does not trigger a production deployment. The
    [`deploy-production.yml`](../.github/workflows/deploy-production.yml)
-   workflow is the authoritative definition of its triggers, checks, and
-   order.
+   workflow is the authoritative definition of its triggers and target.
+
+Both deployment callers retain their own concurrency group and restrict runs
+to `spacecubics/asciiweave`. They call
+[`deploy.yml`](../.github/workflows/deploy.yml), which defines the shared
+validation, build, migration, deployment, and health-check steps. Migrations
+run in Wrangler's `preCommands`, so a migration failure prevents deployment.
+Staging checks Wrangler's deployment URL without Access headers; production
+checks its canonical URL with the Access service token.
+
+The reusable workflow has separate, mutually exclusive staging and production
+jobs sharing one YAML-anchored step list. Staging remains outside any GitHub
+environment. The production runner job binds the `production` environment,
+preserving its protection rules and secret scope. Callers pass named secrets
+explicitly; same-named production environment secrets take precedence over
+the passed repository secrets. Access credentials are optional in the shared
+interface because staging does not use them, but remain required for the
+production health check.
 
 Because the Worker implements a Durable Object, Cloudflare does not
 generate preview URLs for uploaded versions — use the dedicated staging

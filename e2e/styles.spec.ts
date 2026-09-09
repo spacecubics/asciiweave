@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
-import { createDoc, getText, replaceSource } from './helpers'
+import { createDoc, getText, replaceSource, setSourceViaYjs } from './helpers'
 
 const fixture = readFileSync(new URL('./fixtures/styles.adoc', import.meta.url), 'utf8')
 
@@ -48,6 +48,118 @@ test('styles preserve content, fonts, source, and the Asciidoctor baseline', asy
     `${new URL(page.url()).pathname.replace('/doc/', '/api/documents/')}/source`,
   )
   expect(await exported.text()).toBe(fixture)
+})
+
+test('printing captures the latest source and style in an isolated document', async ({ page }) => {
+  await createDoc(page)
+  await replaceSource(page, fixture)
+  await page.getByLabel('Preview style', { exact: true }).selectOption('space-cubics')
+  // Intercept only the browser dialog. Inspect the real prepared print document
+  // and exercise its afterprint cleanup, including the cancellation path.
+  await page.evaluate(() => {
+    const observer = new MutationObserver(() => {
+      const iframe = document.querySelector<HTMLIFrameElement>('.print-frame')
+      if (!iframe) return
+      observer.disconnect()
+      iframe.addEventListener(
+        'load',
+        () => {
+          iframe.contentWindow!.print = () => {
+            iframe.dataset.printCalled = 'true'
+          }
+        },
+        { once: true },
+      )
+    })
+    observer.observe(document.body, { childList: true })
+  })
+  // No wait for the debounced preview: printing must render this source itself.
+  await setSourceViaYjs(page, '= Latest snapshot\n' + fixture.replace(/^= .*\n/, ''))
+  await page.getByRole('button', { name: 'Print / Save as PDF' }).click()
+  const printFrame = page.locator('.print-frame')
+  await expect(printFrame).toHaveAttribute('data-print-called', 'true')
+  await expect(printFrame).toHaveAttribute('sandbox', 'allow-same-origin allow-modals')
+  const print = page.frameLocator('.print-frame')
+  await expect(print.locator('h1')).toHaveText('Latest snapshot')
+  await expect(print.locator('html')).toHaveAttribute('lang', 'ja')
+  await expect(print.locator('h2').first()).toHaveCSS('color', 'rgb(0, 0, 0)')
+  await setSourceViaYjs(page, '= Changed after print\n\nNew text')
+  await page.getByLabel('Preview style', { exact: true }).selectOption('git-docs')
+  await expect(print.locator('h1')).toHaveText('Latest snapshot')
+  await expect(print.locator('html')).toHaveAttribute('lang', 'ja')
+  await expect(print.locator('h2').first()).toHaveCSS('color', 'rgb(0, 0, 0)')
+  await printFrame.evaluate((element: HTMLIFrameElement) => {
+    element.contentWindow!.dispatchEvent(new Event('afterprint'))
+  })
+  await expect(printFrame).toHaveCount(0)
+})
+
+test('print errors use an existing alert region and can be repeated', async ({ page }) => {
+  await page.route('https://example.com/missing.png', (route) => route.abort())
+  await createDoc(page)
+  const alert = page.getByRole('alert')
+  // The empty region must already be exposed before its content changes.
+  await expect(alert).toHaveCount(1)
+  await expect(alert).toBeEmpty()
+  await replaceSource(page, '= Image failure\n\nimage::https://example.com/missing.png[]')
+  const button = page.getByRole('button', { name: 'Print / Save as PDF' })
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await button.click()
+    await expect(alert).toContainText('Could not prepare the PDF')
+    await expect(button).toBeEnabled()
+    await expect(page.locator('.print-frame')).toHaveCount(0)
+  }
+})
+
+test('printing waits for initial sync and remains available offline', async ({ page }) => {
+  await createDoc(page)
+  let release: (() => void) | undefined
+  await page.routeWebSocket('**/collab/**', (socket) => {
+    const server = socket.connectToServer()
+    const pending: Array<string | Buffer> = []
+    let paused = true
+    server.onMessage((message) => {
+      if (paused) pending.push(message)
+      else socket.send(message)
+    })
+    release = () => {
+      paused = false
+      for (const message of pending) socket.send(message)
+    }
+  })
+  await page.reload()
+  const button = page.getByRole('button', { name: 'Print / Save as PDF' })
+  await expect(page.locator('#sync-state')).toHaveText('Connecting…')
+  expect(await getText(page)).toBe('')
+  await expect(button).toBeDisabled()
+  await expect.poll(() => Boolean(release)).toBe(true)
+  release!()
+  await expect(page.locator('#sync-state')).toHaveText('Synced')
+  await expect(button).toBeEnabled()
+  await page.evaluate(() => window.__asciiweave!.provider.disconnect())
+  await expect(page.locator('#sync-state')).toHaveText('Offline')
+  await expect(button).toBeEnabled()
+  await replaceSource(page, '= Offline edit\n\nPrintable without reconnecting.')
+  await page.evaluate(() => {
+    const observer = new MutationObserver(() => {
+      const iframe = document.querySelector<HTMLIFrameElement>('.print-frame')
+      if (!iframe) return
+      observer.disconnect()
+      iframe.addEventListener(
+        'load',
+        () => {
+          iframe.contentWindow!.addEventListener('beforeprint', () => {
+            document.body.dataset.printedTitle =
+              iframe.contentDocument!.querySelector('h1')!.textContent!
+          })
+        },
+        { once: true },
+      )
+    })
+    observer.observe(document.body, { childList: true })
+  })
+  await button.click()
+  await expect(page.locator('body')).toHaveAttribute('data-printed-title', 'Offline edit')
 })
 
 test('sample styles use explicit Japanese fonts in headings, prose, and code', async ({ page }) => {

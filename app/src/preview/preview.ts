@@ -175,7 +175,7 @@ export function createPreview(container: HTMLElement, initialStyle = defaultStyl
   }
 }
 
-async function renderPreview(source: string): Promise<RenderedPreview> {
+export async function renderPreview(source: string): Promise<RenderedPreview> {
   const document = await load(source, {
     attributes: { showtitle: true },
     sourcemap: true,

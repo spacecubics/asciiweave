@@ -70,6 +70,7 @@ test('style controls fit narrow screens and remain keyboard accessible', async (
   await select.press('End')
   await select.press('Enter')
   await expect(select).toHaveValue('test-second')
+  await expect(page.getByRole('button', { name: 'Print / Save as PDF' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })
 
@@ -111,7 +112,7 @@ test('switching styles preserves source scroll position and does not add an undo
   await expect(page.locator('.cm-content')).toContainText('Untitled Document')
 })
 
-test('scripts stay blocked in every style', async ({ page }) => {
+test('scripts stay blocked in every style and in the print snapshot', async ({ page }) => {
   await createDoc(page)
   await replaceSource(
     page,
@@ -122,6 +123,28 @@ test('scripts stay blocked in every style', async ({ page }) => {
     await expect(page.frameLocator('.preview-frame').locator('script')).toHaveCount(1)
     await expect(page.locator('body')).not.toHaveAttribute('data-script-ran', 'yes')
   }
+  // Use the native print call in headless Chromium. beforeprint confirms the
+  // sandbox actually permits it; the event is not supplied by a test stub.
+  await page.evaluate(() => {
+    const observer = new MutationObserver(() => {
+      const iframe = document.querySelector<HTMLIFrameElement>('.print-frame')
+      if (!iframe) return
+      observer.disconnect()
+      iframe.addEventListener(
+        'load',
+        () => {
+          iframe.contentWindow!.addEventListener('beforeprint', () => {
+            document.body.dataset.nativePrint = 'called'
+          })
+        },
+        { once: true },
+      )
+    })
+    observer.observe(document.body, { childList: true })
+  })
+  await page.getByRole('button', { name: 'Print / Save as PDF' }).click()
+  await expect(page.locator('body')).toHaveAttribute('data-native-print', 'called')
+  await expect(page.locator('body')).not.toHaveAttribute('data-script-ran', 'yes')
 })
 
 test('Asciidoctor restores original language context after reload and style switches', async ({

@@ -14,6 +14,7 @@ import { createEditor } from './editor/editor'
 import { createPaneResizer } from './layout/pane-resizer'
 import { createPreview } from './preview/preview'
 import { previewStyles, resolveStyle, STYLE_KEY } from './preview/styles'
+import { printDocument } from './preview/print'
 import { browserPreferences } from './preferences'
 
 declare global {
@@ -92,9 +93,11 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
       <div class="preview-controls">
         <label for="preview-style-select">Preview style</label>
         <select id="preview-style-select"></select>
+        <button id="print-document" type="button" disabled>Print / Save as PDF</button>
       </div>
       <span id="sync-state" class="sync-state" data-state="connecting">Connecting…</span>
     </header>
+    <p id="print-error" class="error print-error" role="alert"></p>
     <main class="panes">
       <section id="source-pane" class="pane" aria-label="AsciiDoc source"></section>
       <div
@@ -111,6 +114,8 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
     </main>
   `
   const styleSelect = container.querySelector<HTMLSelectElement>('#preview-style-select')!
+  const printButton = container.querySelector<HTMLButtonElement>('#print-document')!
+  const printError = container.querySelector<HTMLElement>('#print-error')!
   const panes = container.querySelector<HTMLElement>('.panes')
   const sourcePane = container.querySelector<HTMLElement>('#source-pane')
   const paneResizer = container.querySelector<HTMLElement>('#pane-resizer')
@@ -149,12 +154,31 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
   // happens on the server from the collaborative state — there is no
   // client-side save path anymore.
   const local = createLocalDocument()
+  let hasSynced = false
+  let printing = false
+  printButton.addEventListener('click', () => {
+    if (!hasSynced || printing) return
+    printing = true
+    printButton.disabled = true
+    printError.textContent = ''
+    void printDocument(local.ytext.toString(), style)
+      .catch(() => {
+        printError.textContent = 'Could not prepare the PDF. Check document images and try again.'
+      })
+      .finally(() => {
+        printing = false
+        renderSyncState()
+      })
+  })
   const provider = connectCollaboration(local.ydoc, id)
   local.onSourceChange((source) => preview.update(source))
 
   // The indicator reflects the collaboration connection: while synced,
   // edits reach the server (which persists them) in real time.
   const renderSyncState = () => {
+    // Wait for the document once, then allow printing subsequent offline edits.
+    hasSynced ||= provider.synced
+    printButton.disabled = !hasSynced || printing
     const state = provider.wsconnected ? (provider.synced ? 'synced' : 'connecting') : 'offline'
     syncState.dataset.state = state
     syncState.textContent =

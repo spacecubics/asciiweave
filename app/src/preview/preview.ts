@@ -36,7 +36,11 @@ let renderSequence = 0
 // The parent needs same-origin DOM access to position the preview without
 // fragment navigations. Scripts remain disabled by both the sandbox and CSP;
 // nested frames, plugins, and form submissions are blocked as well.
-export function createPreview(container: HTMLElement, initialStyle = defaultStyle): Preview {
+export function createPreview(
+  container: HTMLElement,
+  initialStyle = defaultStyle,
+  onNavigate?: (line: number) => void,
+): Preview {
   const iframe = document.createElement('iframe')
   iframe.className = 'preview-frame'
   iframe.setAttribute('sandbox', 'allow-same-origin')
@@ -53,6 +57,54 @@ export function createPreview(container: HTMLElement, initialStyle = defaultStyl
   let followFrame: number | undefined
   let pendingPageLoad: (() => void) | undefined
   let contentObserver: ResizeObserver | undefined
+  let linkedDocument: Document | undefined
+
+  const navigateLink = (event: MouseEvent): void => {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.altKey ||
+      !rendered ||
+      !linkedDocument
+    ) {
+      return
+    }
+    // Nodes belong to the iframe's realm, so instanceof Element from the
+    // parent would reject them. Walk the event path instead.
+    const link = event.composedPath().find((node) => (node as Element).localName === 'a') as
+      HTMLAnchorElement | undefined
+    const href = link?.getAttribute('href')
+    if (
+      !href?.startsWith('#') ||
+      link?.hasAttribute('download') ||
+      (link?.target && link.target !== '_self')
+    ) {
+      return
+    }
+    let id: string
+    try {
+      id = decodeURIComponent(href.slice(1))
+    } catch {
+      return
+    }
+    let target = linkedDocument.getElementById(id)
+    while (target) {
+      const anchor = rendered.anchors.find((entry) => entry.id === target?.id)
+      if (anchor) {
+        // Keep native fragment navigation, including keyboard activation.
+        // Updating the requested line also prevents a resize from restoring
+        // the old source position before the editor's scroll event arrives.
+        requestedLine = anchor.line
+        requestedEnd = false
+        onNavigate?.(anchor.line)
+        return
+      }
+      target = target.parentElement
+    }
+  }
 
   const followSource = (): void => {
     if (!rendered || !iframeLoaded) {
@@ -111,6 +163,8 @@ export function createPreview(container: HTMLElement, initialStyle = defaultStyl
       iframe.removeEventListener('load', pendingPageLoad)
     }
     contentObserver?.disconnect()
+    linkedDocument?.removeEventListener('click', navigateLink)
+    linkedDocument = undefined
 
     rendered = preview
     iframeLoaded = false
@@ -118,6 +172,8 @@ export function createPreview(container: HTMLElement, initialStyle = defaultStyl
       pendingPageLoad = undefined
       iframeLoaded = true
       if (iframe.contentDocument) {
+        linkedDocument = iframe.contentDocument
+        linkedDocument.addEventListener('click', navigateLink)
         applyStyle(iframe.contentDocument, style, rendered?.language)
         void iframe.contentDocument.fonts.ready.then(scheduleFollowSource)
       }
@@ -171,6 +227,7 @@ export function createPreview(container: HTMLElement, initialStyle = defaultStyl
       }
       iframeObserver.disconnect()
       contentObserver?.disconnect()
+      linkedDocument?.removeEventListener('click', navigateLink)
     },
   }
 }

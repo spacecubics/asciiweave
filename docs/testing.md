@@ -49,6 +49,8 @@ Preserve coverage for:
 - CodeMirror/`Y.Text` synchronization and Yjs-aware undo/redo;
 - local and remote preview updates and stale-render rejection;
 - source-to-preview scrolling, including rapid reversals and layout changes;
+- preview fragment links scrolling the source, including keyboard activation
+  and replacement preview documents;
 - concurrent edits, disconnection, reconnection, and convergence;
 - awareness rendering and cleanup;
 - pointer, keyboard, and responsive pane resizing;

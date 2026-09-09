@@ -351,6 +351,12 @@ and each update reads the latest requested line, so a rapid direction change
 cannot leave an older movement queued. Preview content and iframe resize
 events reapply the current source position after layout changes.
 
+The parent attaches a click listener to each loaded preview document. Plain
+fragment links retain native navigation and scroll CodeMirror to the target's
+source line without changing selection or focus. Targets inside a mapped block
+use that enclosing block's line. Modified clicks and links targeting another
+window retain their normal behavior. This requires no scripts inside the iframe.
+
 ## Resizable pane layout
 
 The editor layout uses three CSS Grid tracks: source, separator, and preview.

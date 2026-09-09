@@ -46,6 +46,8 @@ and commands belong in [`testing.md`](testing.md).
 - Scrolling the source pane moves the preview to the corresponding rendered
   block without smooth or queued motion. The latest source position wins when
   scroll events arrive rapidly or reverse direction.
+- Activating an in-document preview link scrolls the source pane to the
+  target's mapped block, without moving the editor selection or focus.
 - Treat rendered document content as untrusted. Keep it in a sandboxed iframe
   with `allow-same-origin` only so the parent can synchronize its scroll
   position. Keep scripts disabled by both the sandbox and a restrictive

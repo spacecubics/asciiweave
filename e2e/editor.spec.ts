@@ -98,6 +98,67 @@ test('preview scripts remain disabled with parent scroll access', async ({ page 
   await expect(page.locator('body')).not.toHaveAttribute('data-preview-script', 'ran')
 })
 
+test('preview links scroll source after rendering and support keyboard activation', async ({
+  page,
+}) => {
+  const url = await createDoc(page)
+  const preview = page.frameLocator('iframe.preview-frame')
+  for (const title of ['First render', 'Updated render']) {
+    const source = [
+      `= ${title}`,
+      ':toc:',
+      '',
+      '== Start',
+      '',
+      'Jump to <<destination,*the destination*>>.',
+      '',
+      ...Array.from({ length: 80 }, (_, index) => `Paragraph ${index}.\n`),
+      '[[destination]]',
+      '== Destination',
+      '',
+      'Return to <<_start,Start>>.',
+      '',
+      ...Array.from({ length: 50 }, (_, index) => `Trailing paragraph ${index}.\n`),
+    ].join('\n')
+    await replaceSource(page, source)
+    await expect(preview.getByRole('heading', { name: title, exact: true })).toBeVisible()
+    await scrollSourceToLine(page, 1)
+    const headingLine = source.split('\n').indexOf('== Destination') + 1
+    await preview.getByRole('link', { name: 'the destination' }).locator('strong').click()
+    await expect
+      .poll(() =>
+        page.locator('.cm-scroller').evaluate((scroller, line) => {
+          const gutter = Array.from(
+            scroller.closest('.cm-editor')!.querySelectorAll('.cm-gutterElement'),
+          ).find((element) => element.textContent === String(line))
+          return gutter
+            ? Math.abs(gutter.getBoundingClientRect().top - scroller.getBoundingClientRect().top)
+            : Infinity
+        }, headingLine),
+      )
+      .toBeLessThan(30)
+    await expect
+      .poll(() =>
+        preview
+          .locator('#destination')
+          .evaluate((element) => Math.abs(element.getBoundingClientRect().top)),
+      )
+      .toBeLessThan(30)
+
+    const back = preview.getByRole('link', { name: 'Start', exact: true }).last()
+    await back.focus()
+    await back.press('Enter')
+    await expect
+      .poll(() => page.locator('.cm-scroller').evaluate((element) => element.scrollTop))
+      .toBeLessThan(100)
+    expect(page.url()).toBe(url)
+    await expect(page.locator('iframe.preview-frame')).toHaveAttribute(
+      'sandbox',
+      'allow-same-origin',
+    )
+  }
+})
+
 test('edits reach the server automatically and survive a reload', async ({ page }) => {
   await createDoc(page)
   await replaceSource(page, '= Saved Title\n\nThis line must persist.')

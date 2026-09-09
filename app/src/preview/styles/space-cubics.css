@@ -1,0 +1,228 @@
+/* Space Cubics sample. Adapted from sc-pdf-builder sc-docs-theme.yml,
+   commit 9ec588495a878fa89ecc2a0897c26d834e8d6933.
+   One file supplies screen and print rules; see docs/preview-styles.md.
+   Font families intentionally inherit asciiweave's Asciidoctor stylesheet. */
+
+/* Colors and comfortable screen proportions. */
+body {
+  --accent: #414551;
+  color: #000;
+  background: #fff;
+  line-height: 1.4;
+}
+#content {
+  max-width: 58rem;
+}
+p,
+.paragraph,
+li,
+dd {
+  line-height: 1.4;
+}
+p {
+  margin-bottom: 0.65em;
+}
+.paragraph > p {
+  text-indent: 0.5em;
+}
+
+/* Relative heading hierarchy, independent of the PDF's point sizes. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+#toctitle {
+  color: #000;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 1.25em;
+  margin-bottom: 0.55em;
+}
+h1 {
+  font-size: 2rem;
+}
+h2 {
+  font-size: 1.7rem;
+}
+h3 {
+  font-size: 1.4rem;
+}
+h4 {
+  font-size: 1.15rem;
+}
+h5,
+h6 {
+  font-size: 1rem;
+}
+.sect1 {
+  padding-bottom: 0.5em;
+}
+.sect1 + .sect1 {
+  border-top: 0;
+}
+a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+strong,
+b {
+  font-weight: 700;
+}
+
+/* Inline code and listings. Darker inline color improves small-text contrast. */
+:not(pre) > code {
+  color: #b52647;
+  background: #f1f3f5;
+}
+.literalblock pre,
+.listingblock pre,
+.literalblock pre:not(.highlight),
+.listingblock pre:not(.highlight) {
+  background: #f5f7f9;
+  border: 1px solid #cfd8dc;
+  border-radius: 2px;
+  padding: 0.65em 0.8em;
+  font-size: 0.85rem;
+}
+pre code {
+  color: inherit;
+}
+.listingblock > .title,
+.literalblock > .title {
+  color: #0068b7;
+  font-size: 0.85rem;
+  font-style: normal;
+  text-align: left;
+}
+
+/* Tables, figures, and lists. Use tableblock so admonition tables stay intact. */
+table.tableblock {
+  border-color: #8b8f99;
+  font-size: 0.9rem;
+}
+table.tableblock > * > tr > * {
+  border-color: #c4c7ce;
+  padding: 0.35em 0.5em;
+}
+table.tableblock thead,
+table.tableblock thead tr {
+  background: #e3e4e8;
+}
+table.tableblock tbody tr:nth-child(even) {
+  background: #f6f8fa;
+}
+table.tableblock p {
+  line-height: 1.3;
+}
+.imageblock > .title,
+table.tableblock > caption.title {
+  color: #303030;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-style: normal;
+  text-align: center;
+}
+li > p {
+  margin-bottom: 0.25em;
+}
+.admonitionblock > table td.content {
+  border-left: 2px solid #8b8f99;
+}
+.admonitionblock > table td.icon .title {
+  color: var(--accent);
+}
+/* Font icons are not bundled; retain readable labels when :icons: font is set. */
+.admonitionblock td.icon i[class]::before {
+  content: attr(title);
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  text-shadow: none;
+  color: var(--accent);
+}
+#toc.toc {
+  background: #fff;
+  border: 0;
+  padding: 0.25rem 0;
+}
+.admonitionblock > table td.content {
+  font-size: 0.9rem;
+  line-height: 1.3;
+  color: #303030;
+}
+.admonitionblock {
+  margin-bottom: 0.75rem;
+}
+
+/* Print: body layout only. Cover pages and running chapter headers are deferred. */
+@page {
+  size: A4 portrait;
+  margin: 18mm 16mm 20mm 18mm;
+  @bottom-right {
+    content: counter(page) ' / ' counter(pages);
+    font-size: 8pt;
+    color: #6a6e78;
+  }
+}
+@media print {
+  html {
+    font-size: 10pt;
+  }
+  body {
+    print-color-adjust: exact;
+  }
+  #content {
+    max-width: none;
+    padding: 0;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    break-after: avoid;
+  }
+  pre,
+  tr,
+  img {
+    break-inside: avoid;
+  }
+  .listingblock,
+  .literalblock,
+  table.tableblock {
+    break-inside: auto;
+  }
+  pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .listingblock pre,
+  .literalblock pre {
+    font-size: 0.8rem;
+  }
+  table.tableblock {
+    width: 100%;
+    table-layout: fixed;
+  }
+  thead {
+    display: table-header-group;
+  }
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+  a,
+  a:visited,
+  code {
+    color: inherit !important;
+  }
+  :not(pre) > code {
+    color: #b52647 !important;
+  }
+  a[href]::after {
+    content: none !important;
+  }
+}

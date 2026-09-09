@@ -1,11 +1,13 @@
 import { load, type AbstractBlock } from '@asciidoctor/core'
 import { createRenderScheduler, type RenderScheduler } from './scheduler'
 import { sourceSpanForLine, type SourceAnchor } from './scroll-sync'
-import asciidoctorCss from './asciidoctor.css?raw'
+import { applyStyle, previewPage } from './page'
+import { defaultStyle, type PreviewStyle } from './styles'
 
 interface RenderedPreview {
   html: string
   anchors: SourceAnchor[]
+  language?: string
 }
 
 interface TableCell {
@@ -24,46 +26,30 @@ interface TableRowTargets {
 }
 
 export interface Preview extends RenderScheduler {
+  setStyle(style: PreviewStyle): void
   /** Follow the first visible source line in the rendered preview. */
   scrollToSourceLine(line: number, atEnd: boolean): void
 }
 
 let renderSequence = 0
 
-const previewCsp = [
-  "default-src 'none'",
-  "script-src 'none'",
-  "style-src 'unsafe-inline'",
-  'img-src data: http: https:',
-  'font-src data: http: https:',
-  'media-src data: http: https:',
-  "object-src 'none'",
-  "frame-src 'none'",
-  "form-action 'none'",
-].join('; ')
-
 // The parent needs same-origin DOM access to position the preview without
 // fragment navigations. Scripts remain disabled by both the sandbox and CSP;
 // nested frames, plugins, and form submissions are blocked as well.
-export function createPreview(container: HTMLElement): Preview {
+export function createPreview(container: HTMLElement, initialStyle = defaultStyle): Preview {
   const iframe = document.createElement('iframe')
   iframe.className = 'preview-frame'
   iframe.setAttribute('sandbox', 'allow-same-origin')
   iframe.title = 'AsciiDoc preview'
   container.appendChild(iframe)
 
-  // A srcdoc document otherwise resolves fragment-only links against the
-  // embedding app URL. Keep TOC and other internal links inside the preview.
-  const page = (preview: RenderedPreview): string =>
-    `<!doctype html><html><head><meta charset="utf-8"><base href="about:srcdoc">` +
-    `<meta http-equiv="Content-Security-Policy" content="${previewCsp}">` +
-    `<style>${asciidoctorCss}</style></head>` +
-    `<body class="article"><div id="content">${preview.html}</div></body></html>`
+  let style = initialStyle
 
   let rendered: RenderedPreview | undefined
   let iframeLoaded = false
   let requestedLine = 1
   let requestedEnd = false
+  let disposed = false
   let followFrame: number | undefined
   let pendingPageLoad: (() => void) | undefined
   let contentObserver: ResizeObserver | undefined
@@ -108,7 +94,7 @@ export function createPreview(container: HTMLElement): Preview {
   }
 
   const scheduleFollowSource = (): void => {
-    if (followFrame !== undefined) {
+    if (disposed || followFrame !== undefined) {
       return
     }
 
@@ -131,6 +117,10 @@ export function createPreview(container: HTMLElement): Preview {
     pendingPageLoad = () => {
       pendingPageLoad = undefined
       iframeLoaded = true
+      if (iframe.contentDocument) {
+        applyStyle(iframe.contentDocument, style, rendered?.language)
+        void iframe.contentDocument.fonts.ready.then(scheduleFollowSource)
+      }
       followSource()
 
       const body = iframe.contentDocument?.body
@@ -140,7 +130,7 @@ export function createPreview(container: HTMLElement): Preview {
       }
     }
     iframe.addEventListener('load', pendingPageLoad, { once: true })
-    iframe.srcdoc = page(preview)
+    iframe.srcdoc = previewPage(preview.html, style, preview.language)
   }
 
   const iframeObserver = new ResizeObserver(scheduleFollowSource)
@@ -157,12 +147,21 @@ export function createPreview(container: HTMLElement): Preview {
 
   return {
     ...scheduler,
+    setStyle(nextStyle) {
+      style = nextStyle
+      if (iframeLoaded && iframe.contentDocument) {
+        applyStyle(iframe.contentDocument, style, rendered?.language)
+        void iframe.contentDocument.fonts.ready.then(scheduleFollowSource)
+      }
+      scheduleFollowSource()
+    },
     scrollToSourceLine(line, atEnd) {
       requestedLine = line
       requestedEnd = atEnd
       scheduleFollowSource()
     },
     dispose() {
+      disposed = true
       scheduler.dispose()
       if (followFrame !== undefined) {
         cancelAnimationFrame(followFrame)
@@ -238,6 +237,7 @@ async function renderPreview(source: string): Promise<RenderedPreview> {
   return {
     html: addTableRowAnchors(await document.convert({ standalone: false }), tableRowTargets),
     anchors,
+    language: String(document.getAttribute('lang', '')),
   }
 }
 

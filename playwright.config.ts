@@ -13,7 +13,7 @@ export default defineConfig({
     baseURL: `http://localhost:${port}`,
   },
   webServer: {
-    command: 'npm run build && npm start',
+    command: 'tsx e2e/build.ts && npm start',
     url: `http://localhost:${port}`,
     env: { PORT: String(port), ASCIIWEAVE_DB: dbPath },
     reuseExistingServer: false,

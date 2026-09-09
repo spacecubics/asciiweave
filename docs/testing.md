@@ -26,6 +26,17 @@ against both stores, using each runtime's Yjs codec. These tests exercise
 `createApp` directly; they do not cover Worker entry-point routing or Durable
 Object integration.
 
+## Continuous integration
+
+Node.js checks and deployment workflows share
+`.github/actions/setup-node/action.yml`. Callers must check out the repository
+before using this local composite action. It selects Node.js from `.nvmrc`,
+caches npm downloads, and runs `npm ci` separately in every job.
+
+Check names and validation commands are unchanged. Deployment workflows share
+only this setup; consolidating their deployment steps is tracked separately in
+[#22](https://github.com/spacecubics/asciiweave/issues/22).
+
 ## Coverage expectations
 
 Preserve coverage for:

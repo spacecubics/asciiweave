@@ -1,4 +1,11 @@
 import type { D1Database } from '@cloudflare/workers-types'
+import {
+  INSERT_DOCUMENT,
+  SELECT_DOCUMENT,
+  SELECT_YJS_STATE,
+  UPDATE_DOCUMENT_SOURCE,
+  UPSERT_YJS_STATE,
+} from './queries'
 import type { DocumentRecord, DocumentStore } from './store'
 
 // D1 implementation of the storage boundary. Schema comes from the same
@@ -21,43 +28,30 @@ export function createD1Store(db: D1Database): DocumentStore {
   return {
     async create(id, source) {
       const now = new Date().toISOString()
-      await db
-        .prepare(
-          'INSERT INTO documents (id, source, revision, created_at, updated_at) VALUES (?, ?, 1, ?, ?)',
-        )
-        .bind(id, source, now, now)
-        .run()
+      await db.prepare(INSERT_DOCUMENT).bind(id, source, now, now).run()
       return { id, source, revision: 1, created_at: now, updated_at: now }
     },
     async get(id) {
-      const row = await db
-        .prepare('SELECT id, source, revision, created_at, updated_at FROM documents WHERE id = ?')
-        .bind(id)
-        .first<DocumentRecord>()
+      const row = await db.prepare(SELECT_DOCUMENT).bind(id).first<DocumentRecord>()
       return row ?? undefined
     },
     async updateSource(id, source) {
       const result = await db
-        .prepare(
-          'UPDATE documents SET source = ?, revision = revision + 1, updated_at = ? WHERE id = ?',
-        )
+        .prepare(UPDATE_DOCUMENT_SOURCE)
         .bind(source, new Date().toISOString(), id)
         .run()
       return result.meta.changes === 1
     },
     async getYjsState(id) {
       const row = await db
-        .prepare('SELECT state FROM yjs_state WHERE id = ?')
+        .prepare(SELECT_YJS_STATE)
         .bind(id)
         .first<{ state: ArrayBuffer | number[] }>()
       return row ? toUint8Array(row.state) : undefined
     },
     async setYjsState(id, state) {
       await db
-        .prepare(
-          `INSERT INTO yjs_state (id, state, updated_at) VALUES (?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at`,
-        )
+        .prepare(UPSERT_YJS_STATE)
         .bind(id, toArrayBuffer(state), new Date().toISOString())
         .run()
     },

@@ -2,6 +2,13 @@ import { mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
+import {
+  INSERT_DOCUMENT,
+  SELECT_DOCUMENT,
+  SELECT_YJS_STATE,
+  UPDATE_DOCUMENT_SOURCE,
+  UPSERT_YJS_STATE,
+} from './queries'
 import type { DocumentRecord, DocumentStore } from './store'
 
 // node:sqlite is still marked experimental; keep all direct usage inside
@@ -122,20 +129,11 @@ export function openStore(path: string, migrationsDir: string = MIGRATIONS_DIR):
   const db = openDatabase(path)
   applyMigrations(db, migrationsDir)
 
-  const insert = db.prepare(
-    'INSERT INTO documents (id, source, revision, created_at, updated_at) VALUES (?, ?, 1, ?, ?)',
-  )
-  const select = db.prepare(
-    'SELECT id, source, revision, created_at, updated_at FROM documents WHERE id = ?',
-  )
-  const update = db.prepare(
-    'UPDATE documents SET source = ?, revision = revision + 1, updated_at = ? WHERE id = ?',
-  )
-  const selectY = db.prepare('SELECT state FROM yjs_state WHERE id = ?')
-  const upsertY = db.prepare(`
-    INSERT INTO yjs_state (id, state, updated_at) VALUES (?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at
-  `)
+  const insert = db.prepare(INSERT_DOCUMENT)
+  const select = db.prepare(SELECT_DOCUMENT)
+  const update = db.prepare(UPDATE_DOCUMENT_SOURCE)
+  const selectY = db.prepare(SELECT_YJS_STATE)
+  const upsertY = db.prepare(UPSERT_YJS_STATE)
 
   return {
     async create(id, source) {

@@ -1,0 +1,45 @@
+= Document Style Sample
+:lang: ja
+:toc:
+:icons: font
+
+== Overview
+
+Normal text, *bold words*, 日本語の**強調**です。 https://example.com[An example link].
+Use `command --option` to select a mode.
+
+=== Details
+
+* A short item
+* A longer item with **strong emphasis**
+
+Option:: A description of the option and its expected behavior.
+
+.Sample data
+[cols="1,2",options="header"]
+|===
+|Name |Description
+|Alpha |English and 日本語 text
+|Beta |A *bold* value
+|===
+
+.Command example
+[source,text]
+----
+example --input document.adoc
+日本語のコメント and ASCII code
+----
+
+NOTE: Keep this note readable without downloaded icon fonts.
+
+TIP: Try changing the preview style.
+
+IMPORTANT: The document source stays the same.
+
+WARNING: This is sample text.
+
+CAUTION: This is another sample.
+
+== Final section
+
+End of the sample document.

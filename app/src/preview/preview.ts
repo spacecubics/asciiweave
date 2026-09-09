@@ -226,7 +226,10 @@ async function renderPreview(source: string): Promise<RenderedPreview> {
         }
         tableRowTargets.push({ tableId: blockId, rowIds })
       }
-      visit(block.getBlocks())
+      // Description lists return [[terms], description] entries, with null
+      // for an absent description, rather than a flat array of blocks.
+      const children = block.getBlocks()
+      visit(context === 'dlist' ? children.flat(2).filter(Boolean) : children)
     }
   }
   visit(document.getBlocks())

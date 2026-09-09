@@ -23,6 +23,7 @@ describe('preview styles', () => {
     for (const id of [null, '', 'removed-style', '{"id":"custom"}', '__proto__']) {
       expect(resolveStyle(id).id).toBe('default')
     }
+    expect(resolveStyle('git-docs').name).toBe('Git Docs')
   })
 
   it('preserves original language context only for Asciidoctor', () => {

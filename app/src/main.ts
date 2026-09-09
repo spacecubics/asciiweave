@@ -13,6 +13,7 @@ import { createLocalDocument, type LocalDocument } from './documents/ydoc'
 import { createEditor } from './editor/editor'
 import { createPaneResizer } from './layout/pane-resizer'
 import { createPreview } from './preview/preview'
+import { browserPreferences } from './preferences'
 
 declare global {
   interface Window {
@@ -151,14 +152,14 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
 
   // Presence is ephemeral Yjs Awareness state: name, color, cursor, and
   // online status never become part of the document or its persistence.
-  let user = loadLocalUser(localStorage)
+  let user = loadLocalUser(browserPreferences)
   provider.awareness.setLocalStateField('user', user)
   userName.value = user.name
   userName.addEventListener('change', () => {
     const name = userName.value.trim() || user.name
     userName.value = name
     user = withColorLight(name, user.color)
-    storeUserName(localStorage, name)
+    storeUserName(browserPreferences, name)
     provider.awareness.setLocalStateField('user', user)
   })
 

@@ -20,6 +20,12 @@ The storage layer has one behavioral contract suite
 (`server/tests/store-contract.ts`) that runs against both databases:
 `npm test` covers `node:sqlite`, and `npm run test:workers` covers D1.
 
+The shared API contract (`server/tests/api-contract.ts`) runs the same
+document creation, read, health, source resolution, and export scenarios
+against both stores, using each runtime's Yjs codec. These tests exercise
+`createApp` directly; they do not cover Worker entry-point routing or Durable
+Object integration.
+
 ## Coverage expectations
 
 Preserve coverage for:

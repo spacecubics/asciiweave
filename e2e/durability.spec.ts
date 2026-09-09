@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { expect, test, type Page } from '@playwright/test'
 import * as Y from 'yjs'
+import { createDoc, getText, openPair, replaceSource } from './helpers'
 
 // Phase 4.2: durable CRDT state. These tests manage their own server
 // process (instead of Playwright's shared webServer) so they can kill
@@ -66,24 +67,6 @@ test.afterEach(async () => {
   await killServer()
 })
 
-function getText(page: Page): Promise<string> {
-  return page.evaluate(() => window.__asciiweave?.ytext.toString() ?? '')
-}
-
-async function createDoc(page: Page): Promise<string> {
-  await page.goto(`${BASE}/`)
-  await page.getByRole('button', { name: 'New document' }).click()
-  await page.waitForURL(/\/doc\/[A-Za-z0-9_-]+$/)
-  await expect(page.locator('.cm-content')).toContainText('Untitled Document')
-  return page.url()
-}
-
-async function replaceAll(page: Page, source: string): Promise<void> {
-  await page.locator('.cm-content').click()
-  await page.keyboard.press('ControlOrMeta+a')
-  await page.keyboard.insertText(source)
-}
-
 // The debounced persist runs ~1s after the last update. Read the
 // durable CRDT state straight out of SQLite (WAL allows a concurrent
 // reader) and decode it, so this cannot be satisfied by the plain-text
@@ -118,15 +101,9 @@ async function waitForPersist(page: Page, marker: string): Promise<void> {
 
 test('a collaborative session survives a hard server restart', async ({ browser }) => {
   await startServer()
-  const ctxA = await browser.newContext()
-  const ctxB = await browser.newContext()
-  const pageA = await ctxA.newPage()
-  const url = await createDoc(pageA)
-  const pageB = await ctxB.newPage()
-  await pageB.goto(url)
-  await expect(pageB.locator('.cm-content')).toContainText('Untitled Document')
+  const { pageA, pageB, ctxA, ctxB } = await openPair(browser, BASE)
 
-  await replaceAll(pageA, '= Durable\n\nwritten before the crash')
+  await replaceSource(pageA, '= Durable\n\nwritten before the crash')
   await expect(pageB.locator('.cm-content')).toContainText('written before the crash')
   await waitForPersist(pageA, 'written before the crash')
 
@@ -141,7 +118,7 @@ test('a collaborative session survives a hard server restart', async ({ browser 
   }
 
   // The room is alive again: edits still flow between the clients.
-  await replaceAll(pageB, '= Durable\n\nwritten after the restart')
+  await replaceSource(pageB, '= Durable\n\nwritten after the restart')
   expect(await getText(pageB)).toContain('written after the restart')
   await expect
     .poll(() => getText(pageA), { timeout: 15_000 })
@@ -154,19 +131,13 @@ test('a collaborative session survives a hard server restart', async ({ browser 
 
 test('repeated hard restarts with edits between never diverge', async ({ browser }) => {
   await startServer()
-  const ctxA = await browser.newContext()
-  const ctxB = await browser.newContext()
-  const pageA = await ctxA.newPage()
-  const url = await createDoc(pageA)
-  const pageB = await ctxB.newPage()
-  await pageB.goto(url)
-  await expect(pageB.locator('.cm-content')).toContainText('Untitled Document')
+  const { pageA, pageB, ctxA, ctxB } = await openPair(browser, BASE)
 
   let accumulated = '= Torture\n'
   for (let cycle = 1; cycle <= 3; cycle++) {
     const writer = cycle % 2 === 0 ? pageA : pageB
     accumulated += `\nline from cycle ${cycle}`
-    await replaceAll(writer, accumulated)
+    await replaceSource(writer, accumulated)
     await waitForPersist(writer, `cycle ${cycle}`)
 
     await killServer()
@@ -184,12 +155,12 @@ test('a kill during active typing loses nothing while a client stays open', asyn
   await startServer()
   const ctx = await browser.newContext()
   const page = await ctx.newPage()
-  const url = await createDoc(page)
+  const url = await createDoc(page, BASE)
 
   // Type and kill immediately — well inside the 1s persist debounce, so
   // the snapshot on disk is stale. The client's own Yjs doc holds the
   // full history and must re-sync it into the rebuilt room on reconnect.
-  await replaceAll(page, '= Mid Flight\n\nnot yet persisted when the server died')
+  await replaceSource(page, '= Mid Flight\n\nnot yet persisted when the server died')
   await killServer()
   await startServer()
 
@@ -227,7 +198,7 @@ test('a legacy document without CRDT state migrates on first open', async ({ bro
   await expect(page.locator('.cm-content')).toContainText('created before CRDT persistence')
 
   // Editing the migrated document persists CRDT state from now on.
-  await replaceAll(page, '= Legacy Document\n\nmigrated and edited\n')
+  await replaceSource(page, '= Legacy Document\n\nmigrated and edited\n')
   await waitForPersist(page, 'migrated and edited')
   await page.context().close()
 })
@@ -236,8 +207,8 @@ test('durable state does not depend on a browser staying open', async ({ browser
   await startServer()
   const ctx = await browser.newContext()
   const page = await ctx.newPage()
-  const url = await createDoc(page)
-  await replaceAll(page, '= Unattended\n\nnobody is watching this document')
+  const url = await createDoc(page, BASE)
+  await replaceSource(page, '= Unattended\n\nnobody is watching this document')
   await waitForPersist(page, 'nobody is watching')
 
   // Close every client, then kill the server without ceremony.

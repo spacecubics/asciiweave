@@ -59,6 +59,11 @@ behavior over checks that a component, function, or file merely exists.
 
 ## Collaboration tests
 
+Shared browser helpers in `e2e/helpers.ts` handle document creation,
+independent editor pairs, and source reads. Keyboard editing and direct Yjs
+transactions remain separate operations. Document creation accepts a custom
+base URL so durability tests can keep using their private server.
+
 At least one collaboration test must use independent real browser clients;
 mocked WebSocket unit tests alone are insufficient. Exercise actual concurrent
 operations, temporary disconnection, reconnection, convergence, and isolation

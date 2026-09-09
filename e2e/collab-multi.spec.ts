@@ -1,11 +1,8 @@
-import { expect, test, type Browser, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+import { createDoc, getText, openPair, replaceSource } from './helpers'
 
 // Real multi-client collaboration tests: two independent browser contexts
 // talking to the same server over real WebSockets — no mocks.
-
-function getText(page: Page): Promise<string> {
-  return page.evaluate(() => window.__asciiweave?.ytext.toString() ?? '')
-}
 
 function transact(page: Page, fn: string): Promise<void> {
   return page.evaluate((body) => {
@@ -35,37 +32,11 @@ async function expectConverged(pageA: Page, pageB: Page, markers: string[]): Pro
     .toBe('converged')
 }
 
-async function openPair(browser: Browser, baseURL: string) {
-  const ctxA = await browser.newContext()
-  const ctxB = await browser.newContext()
-  const pageA = await ctxA.newPage()
-  await pageA.goto(`${baseURL}/`)
-  await pageA.getByRole('button', { name: 'New document' }).click()
-  await pageA.waitForURL(/\/doc\/[A-Za-z0-9_-]+$/)
-  const url = pageA.url()
-  const pageB = await ctxB.newPage()
-  await pageB.goto(url)
-  for (const page of [pageA, pageB]) {
-    await expect(page.locator('.cm-content')).toContainText('Untitled Document')
-  }
-  return {
-    pageA,
-    pageB,
-    url,
-    close: async () => {
-      await ctxA.close()
-      await ctxB.close()
-    },
-  }
-}
-
 test('edits in one browser appear in the other without refresh', async ({ browser, baseURL }) => {
   const pair = await openPair(browser, baseURL!)
   const { pageA, pageB } = pair
 
-  await pageA.locator('.cm-content').click()
-  await pageA.keyboard.press('ControlOrMeta+a')
-  await pageA.keyboard.insertText('== Shared Heading\n\ntyped in browser A')
+  await replaceSource(pageA, '== Shared Heading\n\ntyped in browser A')
 
   await expect(pageB.locator('.cm-content')).toContainText('typed in browser A')
   // Each client renders its own preview locally from the shared source.
@@ -156,10 +127,7 @@ test('clients on different documents never receive each other updates', async ({
   const pageA = await ctxA.newPage()
   const pageB = await ctxB.newPage()
   for (const page of [pageA, pageB]) {
-    await page.goto(`${baseURL}/`)
-    await page.getByRole('button', { name: 'New document' }).click()
-    await page.waitForURL(/\/doc\/[A-Za-z0-9_-]+$/)
-    await expect(page.locator('.cm-content')).toContainText('Untitled Document')
+    await createDoc(page, baseURL!)
   }
   expect(pageA.url()).not.toBe(pageB.url())
 

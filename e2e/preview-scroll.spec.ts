@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { createDoc, replaceSource } from './helpers'
+import { createDoc, replaceSource, setSourceViaYjs } from './helpers'
 
 async function firstSourceLine(page: Page): Promise<number> {
   return page.locator('.cm-scroller').evaluate((scroller) => {
@@ -185,4 +185,39 @@ test('preview positions are reused while scrolling and refreshed after layout ch
   })
   await jump(30)
   expect(Number(await reads()) - initialReads).toBeGreaterThan(100)
+})
+
+test('distant preview jumps stay put after CodeMirror measures virtual lines', async ({ page }) => {
+  await createDoc(page)
+  const source =
+    '= Navigation\n\n' +
+    Array.from(
+      { length: 40 },
+      (_, index) =>
+        `== Section ${index + 1}\n\nText ${index}.\n\n=== 日本語 *child* ${index + 1}\n\nMore text.\n`,
+    ).join('\n')
+  await setSourceViaYjs(page, source)
+  const preview = page.frameLocator('.preview-frame')
+  const heading = preview.locator('#_section_25')
+  await expect(heading).toBeVisible()
+  // Finish initial font layout before testing a user-initiated jump.
+  await page.evaluate(async () => {
+    const frame = document.querySelector<HTMLIFrameElement>('.preview-frame')!
+    await frame.contentDocument!.fonts.ready
+    for (let index = 0; index < 12; index++) await new Promise(requestAnimationFrame)
+  })
+  // Navigation outside the source must not move focus back to its caret.
+  const style = page.getByLabel('Preview style', { exact: true })
+  await style.focus()
+  const top = await heading.evaluate((el) => {
+    window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top)
+    return window.scrollY
+  })
+  const line = source.split('\n').indexOf('== Section 25') + 1
+  await expect.poll(async () => Math.abs((await firstSourceLine(page)) - line)).toBeLessThan(2)
+  await page.evaluate(async () => {
+    for (let index = 0; index < 12; index++) await new Promise(requestAnimationFrame)
+  })
+  expect(await heading.evaluate(() => window.scrollY)).toBe(top)
+  await expect(style).toBeFocused()
 })

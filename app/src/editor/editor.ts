@@ -18,19 +18,26 @@ import type { Awareness } from 'y-protocols/awareness'
 import type * as Y from 'yjs'
 
 const followedPositions = new WeakMap<EditorView, number>()
+const pendingScrolls = new WeakMap<EditorView, { line: number; atEnd: boolean }>()
 
-/** Follow preview scrolling without moving the selection or taking focus. */
-export function scrollEditorToLine(view: EditorView, line: number, atEnd: boolean): void {
+function editorTopForLine(view: EditorView, line: number, atEnd: boolean): number {
   const clamped = Math.max(1, Math.min(line, view.state.doc.lines))
   const block = view.lineBlockAt(view.state.doc.line(Math.floor(clamped)).from)
-  view.scrollDOM.scrollTop = atEnd
+  const top = atEnd
     ? view.scrollDOM.scrollHeight
     : clamped === 1
       ? 0
       : view.documentPadding.top + block.top + block.height * (clamped % 1)
-  // Record the actual, browser-clamped position. Only its echo is ignored;
-  // subsequent user movement immediately takes over synchronization.
-  followedPositions.set(view, view.scrollDOM.scrollTop)
+  return Math.max(0, Math.min(top, view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight))
+}
+
+/** Follow preview scrolling without moving the selection or taking focus. */
+export function scrollEditorToLine(view: EditorView, line: number, atEnd: boolean): void {
+  const clamped = Math.max(1, Math.min(line, view.state.doc.lines))
+  pendingScrolls.set(view, { line: clamped, atEnd })
+  view.dispatch({
+    effects: EditorView.scrollIntoView(view.state.doc.line(Math.floor(clamped)).from),
+  })
 }
 
 // The extension list is assembled by hand instead of using basicSetup:
@@ -60,6 +67,16 @@ export function createEditor(
       highlightActiveLine(),
       highlightSelectionMatches(),
       EditorView.lineWrapping,
+      EditorView.scrollHandler.of((view) => {
+        const requested = pendingScrolls.get(view)
+        if (!requested) return false
+        pendingScrolls.delete(view)
+        // Run after CodeMirror measures the destination's virtual lines, so
+        // its height correction cannot feed an extra scroll back to preview.
+        view.scrollDOM.scrollTop = editorTopForLine(view, requested.line, requested.atEnd)
+        followedPositions.set(view, view.scrollDOM.scrollTop)
+        return true
+      }),
       EditorView.domEventHandlers({
         scroll(_event, view) {
           const followed = followedPositions.get(view)

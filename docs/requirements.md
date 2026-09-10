@@ -77,3 +77,20 @@ and commands belong in [`testing.md`](testing.md).
 - `GET /api/health` reports the running commit and verifies database access.
 - It returns `200` with `ok: true` when database access succeeds and `503` with
   `ok: false` when database access fails.
+
+## Table of contents navigation
+
+- The closed layout is source, splitter, TOC rail, preview. The outline
+  contains the document title and parsed sections, even without `:toc:`.
+- Clicking the hamburger button opens a separate TOC column, giving source,
+  splitter, TOC rail, TOC, preview order. Closing restores the preview width.
+  The button supports keyboard and touch; hover does not open or close it.
+- Pinning keeps the TOC open when focus moves outside it. Unpinning closes it;
+  Escape unpins and dismisses it. The split slider stays usable in each state.
+- On narrow screens, source stays above the rail/TOC/preview row, which keeps
+  the same left-to-right order and remains within the viewport.
+- Clicking a compact rail mark or selecting an outline heading scrolls the
+  preview and source without editing the document. The active heading follows
+  scrolling in either pane.
+- The outline updates with rendered local and remote changes and remains
+  usable on narrow screens. Heading labels remain plain text in the shell.

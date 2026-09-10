@@ -125,3 +125,20 @@ is `e2e/fixtures/styles.adoc`. Print-dialog interception checks prepared
 content without saving to the user's filesystem; actual browser PDF output
 and page breaks additionally need visual review with the settings in
 [preview-styles.md](preview-styles.md).
+
+## TOC navigation
+
+`e2e/toc.spec.ts` covers heading hierarchy, formatted Japanese labels, explicit
+and duplicate IDs, literal code-block headings, navigation in both panes,
+active-section tracking, clickable rail marks, click-only menu toggling, pinning,
+keyboard dismissal, live outline replacement, and narrow-screen access. It also checks that the
+layout follows source, splitter, rail, TOC, preview order when open, restores
+preview space on close, unpin, or Escape, and leaves the splitter accessible.
+Additional regressions cover duplicate authored IDs with distinct navigation
+and one active entry, wheel access to the last rail mark on a narrow viewport,
+and cached heading geometry with deferred scroll-event processing and layout
+invalidation. Run it with the scroll regression tests:
+
+```sh
+npm run test:e2e -- e2e/toc.spec.ts e2e/preview-scroll.spec.ts
+```

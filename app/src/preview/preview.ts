@@ -1,3 +1,4 @@
+import { createToc } from './toc'
 import { load, type AbstractBlock } from '@asciidoctor/core'
 import { createRenderScheduler, type RenderScheduler } from './scheduler'
 import { sourceLineForPosition, sourceSpanForLine, type SourceAnchor } from './scroll-sync'
@@ -7,6 +8,7 @@ import { defaultStyle, type PreviewStyle } from './styles'
 interface RenderedPreview {
   html: string
   anchors: SourceAnchor[]
+  headingIds: string[]
   language?: string
 }
 
@@ -47,6 +49,45 @@ export function createPreview(
   iframe.title = 'AsciiDoc preview'
   container.appendChild(iframe)
 
+  const toc = createToc(container, (id) => {
+    const target = iframe.contentDocument?.getElementById(id)
+    const scroller = iframe.contentDocument?.scrollingElement
+    if (!target || !scroller) return
+    if (followFrame !== undefined) cancelAnimationFrame(followFrame)
+    followFrame = undefined
+    if (previewFrame !== undefined) cancelAnimationFrame(previewFrame)
+    previewFrame = undefined
+    requestedLine = rendered?.anchors.find((anchor) => anchor.id === id)?.line ?? 1
+    requestedEnd = false
+    scroller.scrollTop += target.getBoundingClientRect().top
+    followedTop = scroller.scrollTop
+    onScroll?.(requestedLine, false)
+    updateActiveHeading()
+  })
+  let headings: HTMLElement[] = []
+  let headingPositions: { id: string; top: number }[] | undefined
+  const updateActiveHeading = (): void => {
+    const scroller = scrollDocument?.scrollingElement
+    if (!scroller) return
+    const top = scroller.scrollTop
+    headingPositions ??= headings.map((heading) => ({
+      id: heading.id,
+      top: heading.getBoundingClientRect().top + top,
+    }))
+    // Short final sections cannot reach the viewport top.
+    if (top > 0 && top + scroller.clientHeight >= scroller.scrollHeight - 1) {
+      const last = headingPositions[headingPositions.length - 1]
+      if (last) toc.setActive(last.id)
+      return
+    }
+    let active = headingPositions[0]
+    for (const heading of headingPositions) {
+      if (heading.top > top + 8) break
+      active = heading
+    }
+    if (active) toc.setActive(active.id)
+  }
+
   let style = initialStyle
 
   let rendered: RenderedPreview | undefined
@@ -77,6 +118,7 @@ export function createPreview(
       const frameDocument = scrollDocument
       const scroller = frameDocument?.scrollingElement
       if (!frameDocument || !scroller || !rendered || !iframeLoaded) return
+      updateActiveHeading()
       positions ??= rendered.anchors.flatMap((anchor) => {
         const element = frameDocument.getElementById(anchor.id)
         return element
@@ -131,6 +173,7 @@ export function createPreview(
     // behavior, so user-authored styles cannot leave animation work queued.
     scrollingElement.scrollTop = Math.min(Math.max(top, 0), maximum)
     followedTop = scrollingElement.scrollTop
+    updateActiveHeading()
   }
 
   const scheduleFollowSource = (): void => {
@@ -148,6 +191,7 @@ export function createPreview(
 
   const layoutChanged = (): void => {
     positions = undefined
+    headingPositions = undefined
     scheduleFollowSource()
   }
 
@@ -165,6 +209,7 @@ export function createPreview(
     }
 
     positions = undefined
+    headingPositions = undefined
     rendered = preview
     iframeLoaded = false
     pendingPageLoad = () => {
@@ -172,6 +217,19 @@ export function createPreview(
       iframeLoaded = true
       if (iframe.contentDocument) {
         scrollDocument = iframe.contentDocument
+        // Use only converter section headings and the document title. Raw
+        // passthrough headings and inline TOC entries are not sections.
+        headings = (rendered?.headingIds ?? []).flatMap((id) => {
+          const heading = scrollDocument?.getElementById(id)
+          return heading ? [heading] : []
+        })
+        toc.setHeadings(
+          headings.map((heading) => ({
+            id: heading.id,
+            level: Number(heading.tagName.slice(1)),
+            label: heading.textContent ?? '',
+          })),
+        )
         scrollDocument.addEventListener('scroll', previewScrolled)
         applyStyle(iframe.contentDocument, style, rendered?.language)
         void iframe.contentDocument.fonts.ready.then(layoutChanged)
@@ -197,6 +255,7 @@ export function createPreview(
     loadPage({
       html: `<div class="admonitionblock caution"><p>Preview error: ${escaped}</p></div>`,
       anchors: [],
+      headingIds: [],
     })
   })
 
@@ -222,6 +281,7 @@ export function createPreview(
     dispose() {
       disposed = true
       scheduler.dispose()
+      toc.dispose()
       if (followFrame !== undefined) {
         cancelAnimationFrame(followFrame)
       }
@@ -243,8 +303,19 @@ export async function renderPreview(source: string): Promise<RenderedPreview> {
   })
   const prefix = `asciiweave-source-${++renderSequence}`
   const anchors: SourceAnchor[] = []
+  const titleId = `${prefix}-title`
+  const headingIds: string[] = document.hasHeader() ? [titleId] : []
   const tableRowTargets: TableRowTargets[] = []
   let generatedId = 0
+  const assignedIds = new Set([titleId])
+  const nextId = (): string => {
+    let id: string
+    do {
+      id = `${prefix}-${++generatedId}`
+    } while (assignedIds.has(id))
+    assignedIds.add(id)
+    return id
+  }
 
   const visit = (blocks: AbstractBlock[]): void => {
     for (const block of blocks) {
@@ -256,11 +327,15 @@ export async function renderPreview(source: string): Promise<RenderedPreview> {
       // line with the containing list. Their child blocks are still visited.
       if (line !== undefined && context !== 'preamble' && context !== 'list_item') {
         blockId = block.getId()
-        if (!blockId) {
-          blockId = `${prefix}-${++generatedId}`
+        // Preserve the first occurrence for authored fragment links. Later
+        // duplicate IDs need distinct targets for TOC and scroll mapping.
+        if (!blockId || assignedIds.has(blockId)) {
+          blockId = nextId()
           block.setId(blockId)
         }
+        assignedIds.add(blockId)
         anchors.push({ line, id: blockId })
+        if (context === 'section') headingIds.push(blockId)
       }
 
       if (context === 'table' && blockId) {
@@ -277,7 +352,7 @@ export async function renderPreview(source: string): Promise<RenderedPreview> {
               continue
             }
 
-            const rowId = `${prefix}-${++generatedId}`
+            const rowId = nextId()
             rowIds.push(rowId)
             for (const cellLine of lines) {
               anchors.push({ line: cellLine, id: rowId })
@@ -296,8 +371,12 @@ export async function renderPreview(source: string): Promise<RenderedPreview> {
   anchors.sort((left, right) => left.line - right.line)
 
   return {
-    html: addTableRowAnchors(await document.convert({ standalone: false }), tableRowTargets),
+    html: addTableRowAnchors(
+      (await document.convert({ standalone: false })).replace(/^<h1>/, `<h1 id="${titleId}">`),
+      tableRowTargets,
+    ),
     anchors,
+    headingIds,
     language: String(document.getAttribute('lang', '')),
   }
 }

@@ -127,3 +127,62 @@ test('preview wheel scrolling follows wrapped source and table rows without stea
   await expect(page.locator('.cm-content')).toBeFocused()
   expect(await readSelection()).toEqual(selection)
 })
+
+test('preview positions are reused while scrolling and refreshed after layout changes', async ({
+  page,
+}) => {
+  await createDoc(page)
+  await replaceSource(
+    page,
+    '= Cached\n\n' +
+      Array.from(
+        { length: 100 },
+        (_, index) => `== Section ${index + 1}\n\nParagraph ${index + 1}.\n`,
+      ).join('\n'),
+  )
+  const preview = page.frameLocator('.preview-frame')
+  await expect(preview.locator('#_section_100')).toBeVisible()
+  await page.evaluate(async () => {
+    const doc = document.querySelector<HTMLIFrameElement>('.preview-frame')!.contentDocument!
+    await doc.fonts.ready
+    for (let index = 0; index < 12; index++) await new Promise(requestAnimationFrame)
+    const original = doc.getElementById.bind(doc)
+    doc.documentElement.dataset.anchorReads = '0'
+    doc.getElementById = (id) => {
+      doc.documentElement.dataset.anchorReads = String(
+        Number(doc.documentElement.dataset.anchorReads) + 1,
+      )
+      return original(id)
+    }
+  })
+  const jump = async (section: number) => {
+    await preview
+      .locator(`#_section_${section}`)
+      .evaluate((heading) =>
+        window.scrollTo(0, heading.getBoundingClientRect().top + window.scrollY),
+      )
+    await expect
+      .poll(async () => Math.abs((await firstSourceLine(page)) - (3 + (section - 1) * 4)))
+      .toBeLessThan(2)
+  }
+  await jump(20)
+  const reads = () => preview.locator('html').getAttribute('data-anchor-reads')
+  const initialReads = Number(await reads())
+  expect(initialReads).toBeGreaterThan(100)
+  await jump(40)
+  await jump(10)
+  expect(Number(await reads()) - initialReads).toBeLessThan(10)
+
+  // An image loading or text reflow can move every later block.
+  await preview
+    .locator('p')
+    .first()
+    .evaluate((paragraph) => {
+      paragraph.style.paddingBottom = '1000px'
+    })
+  await page.evaluate(async () => {
+    for (let index = 0; index < 4; index++) await new Promise(requestAnimationFrame)
+  })
+  await jump(30)
+  expect(Number(await reads()) - initialReads).toBeGreaterThan(100)
+})

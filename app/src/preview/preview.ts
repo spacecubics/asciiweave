@@ -61,6 +61,8 @@ export function createPreview(
   let followedTop: number | undefined
   let previewFrame: number | undefined
 
+  let positions: { line: number; top: number }[] | undefined
+
   const previewScrolled = (): void => {
     const top = scrollDocument?.scrollingElement?.scrollTop
     if (top === undefined || (followedTop !== undefined && Math.abs(top - followedTop) < 1)) return
@@ -75,7 +77,7 @@ export function createPreview(
       const frameDocument = scrollDocument
       const scroller = frameDocument?.scrollingElement
       if (!frameDocument || !scroller || !rendered || !iframeLoaded) return
-      const positions = rendered.anchors.flatMap((anchor) => {
+      positions ??= rendered.anchors.flatMap((anchor) => {
         const element = frameDocument.getElementById(anchor.id)
         return element
           ? [{ line: anchor.line, top: element.getBoundingClientRect().top + scroller.scrollTop }]
@@ -144,6 +146,11 @@ export function createPreview(
     })
   }
 
+  const layoutChanged = (): void => {
+    positions = undefined
+    scheduleFollowSource()
+  }
+
   const loadPage = (preview: RenderedPreview): void => {
     if (pendingPageLoad) {
       iframe.removeEventListener('load', pendingPageLoad)
@@ -157,6 +164,7 @@ export function createPreview(
       previewFrame = undefined
     }
 
+    positions = undefined
     rendered = preview
     iframeLoaded = false
     pendingPageLoad = () => {
@@ -166,13 +174,13 @@ export function createPreview(
         scrollDocument = iframe.contentDocument
         scrollDocument.addEventListener('scroll', previewScrolled)
         applyStyle(iframe.contentDocument, style, rendered?.language)
-        void iframe.contentDocument.fonts.ready.then(scheduleFollowSource)
+        void iframe.contentDocument.fonts.ready.then(layoutChanged)
       }
       followSource()
 
       const body = iframe.contentDocument?.body
       if (body) {
-        contentObserver = new ResizeObserver(scheduleFollowSource)
+        contentObserver = new ResizeObserver(layoutChanged)
         contentObserver.observe(body)
       }
     }
@@ -180,7 +188,7 @@ export function createPreview(
     iframe.srcdoc = previewPage(preview.html, style, preview.language)
   }
 
-  const iframeObserver = new ResizeObserver(scheduleFollowSource)
+  const iframeObserver = new ResizeObserver(layoutChanged)
   iframeObserver.observe(iframe)
 
   const scheduler = createRenderScheduler(renderPreview, loadPage, (error) => {
@@ -198,9 +206,9 @@ export function createPreview(
       style = nextStyle
       if (iframeLoaded && iframe.contentDocument) {
         applyStyle(iframe.contentDocument, style, rendered?.language)
-        void iframe.contentDocument.fonts.ready.then(scheduleFollowSource)
+        void iframe.contentDocument.fonts.ready.then(layoutChanged)
       }
-      scheduleFollowSource()
+      layoutChanged()
     },
     scrollToSourceLine(line, atEnd) {
       if (previewFrame !== undefined) {

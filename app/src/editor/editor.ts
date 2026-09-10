@@ -17,6 +17,22 @@ import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next'
 import type { Awareness } from 'y-protocols/awareness'
 import type * as Y from 'yjs'
 
+const followedPositions = new WeakMap<EditorView, number>()
+
+/** Follow preview scrolling without moving the selection or taking focus. */
+export function scrollEditorToLine(view: EditorView, line: number, atEnd: boolean): void {
+  const clamped = Math.max(1, Math.min(line, view.state.doc.lines))
+  const block = view.lineBlockAt(view.state.doc.line(Math.floor(clamped)).from)
+  view.scrollDOM.scrollTop = atEnd
+    ? view.scrollDOM.scrollHeight
+    : clamped === 1
+      ? 0
+      : view.documentPadding.top + block.top + block.height * (clamped % 1)
+  // Record the actual, browser-clamped position. Only its echo is ignored;
+  // subsequent user movement immediately takes over synchronization.
+  followedPositions.set(view, view.scrollDOM.scrollTop)
+}
+
 // The extension list is assembled by hand instead of using basicSetup:
 // basicSetup bundles CodeMirror's own history, and there must be exactly
 // one undo system — the Yjs-aware one (yUndoManagerKeymap + yCollab).
@@ -46,6 +62,9 @@ export function createEditor(
       EditorView.lineWrapping,
       EditorView.domEventHandlers({
         scroll(_event, view) {
+          const followed = followedPositions.get(view)
+          if (followed !== undefined && Math.abs(view.scrollDOM.scrollTop - followed) < 1) return
+          followedPositions.delete(view)
           if (!onScroll) {
             return
           }

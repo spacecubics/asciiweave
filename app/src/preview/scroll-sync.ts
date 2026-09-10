@@ -3,6 +3,29 @@ export interface SourceAnchor {
   id: string
 }
 
+/** Map rendered block positions to a (possibly fractional) source line. */
+export function sourceLineForPosition(
+  anchors: readonly { line: number; top: number }[],
+  top: number,
+): number | undefined {
+  if (!anchors.length) return undefined
+  if (top <= 0) return 1
+  // Nested blocks and table cells can share a rendered position. Use the
+  // earliest source line at that position, and tolerate reordered layouts.
+  const ordered = [...anchors].sort((a, b) => a.top - b.top || a.line - b.line)
+  let before = { line: 1, top: 0 }
+  for (let index = 0; index < ordered.length; index++) {
+    const anchor = ordered[index]!
+    if (index > 0 && anchor.top === ordered[index - 1]!.top) continue
+    if (anchor.top > top) {
+      const progress = (top - before.top) / (anchor.top - before.top)
+      return before.line + (anchor.line - before.line) * progress
+    }
+    before = anchor
+  }
+  return before.line
+}
+
 export interface SourceSpan {
   before?: SourceAnchor
   after?: SourceAnchor

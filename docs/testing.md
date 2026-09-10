@@ -48,7 +48,8 @@ Preserve coverage for:
 - Unicode and Japanese round trips;
 - CodeMirror/`Y.Text` synchronization and Yjs-aware undo/redo;
 - local and remote preview updates and stale-render rejection;
-- source-to-preview scrolling, including rapid reversals and layout changes;
+- scrolling in both directions, including rapid reversals, layout changes,
+  fragment navigation, and suppression of synchronization feedback;
 - concurrent edits, disconnection, reconnection, and convergence;
 - awareness rendering and cleanup;
 - pointer, keyboard, and responsive pane resizing;
@@ -72,8 +73,9 @@ operations, temporary disconnection, reconnection, convergence, and isolation
 between different document IDs.
 
 `main.ts` exposes `window.__asciiweave` as an integration-test hook so tests
-can apply Yjs transactions outside CodeMirror, control the connection, and
-verify convergence.
+can apply Yjs transactions outside CodeMirror, control the connection,
+verify convergence, and read selection anchor/head offsets independently of
+CodeMirror viewport virtualization.
 
 Durability coverage has two complementary layers:
 

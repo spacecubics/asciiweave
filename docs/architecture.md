@@ -414,3 +414,47 @@ ordinary flat block arrays in Asciidoctor. This preserves preview conversion
 for option lists such as those used in Git manuals.
 
 See [preview styles](preview-styles.md) for style authoring and print limitations.
+
+## TOC navigation
+
+The compact heading rail sits immediately after the source/preview separator.
+Its hamburger button opens a TOC column between the rail and preview, giving
+source, separator, rail, TOC, preview order without overlapping content or
+covering the separator. Closing the outline restores the preview's width.
+Pointer hover does not open or close the outline.
+
+The preview container's grid reserves at most 45% of its width for the open
+TOC and rail (capped at 308 px), keeping preview usable when the split is narrow.
+The source/preview separator resizes source against the rail/TOC/preview area.
+On narrow screens source remains above that area, whose left-to-right order
+stays rail, TOC, preview. The DOM follows the same order for keyboard navigation.
+Existing iframe resize observation restores scroll correspondence after opening
+or closing the outline.
+
+Pinning keeps the outline open when focus moves to editing. Unpinning closes
+it and returns focus to the hamburger button. Escape also unpins and dismisses
+it. Pinning lasts for the current editor session. The toggle and links support
+keyboard and touch input.
+
+Section IDs come from the same Asciidoctor AST traversal as source anchors.
+The first occurrence of an authored ID is preserved; later duplicate block
+IDs receive distinct generated targets so navigation and active highlighting
+can distinguish them. This changes rendered targets without editing source.
+After the winning preview render loads, the shell reads the corresponding
+heading text as plain text. This preserves converter IDs and formatted titles
+without inserting user-authored HTML into the shell. The document title is also
+included. The outline works without `:toc:` and does not alter the source or
+print output. Navigation uses the existing preview-to-source scroll path;
+current-section highlighting follows both directions of scroll synchronization.
+Heading offsets are cached until rendering, resizing, font readiness, or style
+changes invalidate them. Preview scroll events update the active heading in
+the scheduled animation callback, using a linear scan of cached offsets.
+The compact rail scrolls vertically so pointer users can reach every heading.
+CodeMirror receives follow requests through its scroll effect and scroll handler,
+so virtual line heights are measured before recording the scroll position used
+to suppress feedback.
+
+Prior art: [HackMD note directory documentation](https://hackmd.io/@docs/view-en)
+and `ai-context/Screencast From 2026-09-10 11-54-16.mp4`. The recording shows a
+heading rail, an indented outline, a pin control, and active-section tracking;
+the documentation depicts an older menu layout.

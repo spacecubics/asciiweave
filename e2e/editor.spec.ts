@@ -255,9 +255,7 @@ test('source scrolling directly positions the script-disabled preview', async ({
   await expect
     .poll(() => targetHeading.evaluate((heading) => Math.abs(heading.getBoundingClientRect().top)))
     .toBeGreaterThan(100)
-  await page.locator('.cm-scroller').evaluate((scroller) => {
-    scroller.dispatchEvent(new Event('scroll'))
-  })
+  await scrollSourceToLine(page, targetLine)
   await expect
     .poll(() => targetHeading.evaluate((heading) => Math.abs(heading.getBoundingClientRect().top)))
     .toBeLessThan(2)

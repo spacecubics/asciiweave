@@ -10,7 +10,7 @@ import {
 import { connectCollaboration } from './collaboration/provider'
 import { createDocument, fetchDocument } from './documents/api'
 import { createLocalDocument, type LocalDocument } from './documents/ydoc'
-import { createEditor } from './editor/editor'
+import { createEditor, scrollEditorToLine } from './editor/editor'
 import { createPaneResizer } from './layout/pane-resizer'
 import { createPreview } from './preview/preview'
 import { previewStyles, resolveStyle, STYLE_KEY } from './preview/styles'
@@ -20,8 +20,11 @@ import { browserPreferences } from './preferences'
 declare global {
   interface Window {
     // Test hook: lets integration tests apply programmatic Yjs
-    // transactions, control the connection, and verify convergence.
-    __asciiweave?: Pick<LocalDocument, 'ydoc' | 'ytext'> & { provider: WebsocketProvider }
+    // transactions, control the connection, and inspect editor selection.
+    __asciiweave?: Pick<LocalDocument, 'ydoc' | 'ytext'> & {
+      provider: WebsocketProvider
+      getSelection(): { anchor: number; head: number }
+    }
   }
 }
 
@@ -139,7 +142,9 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
   let style = resolveStyle(browserPreferences.getItem(STYLE_KEY))
   styleSelect.replaceChildren(...previewStyles.map((entry) => new Option(entry.name, entry.id)))
   styleSelect.value = style.id
-  const preview = createPreview(previewPane, style)
+  const preview = createPreview(previewPane, style, (line, atEnd) =>
+    scrollEditorToLine(editor, line, atEnd),
+  )
   styleSelect.addEventListener('change', () => {
     style = resolveStyle(styleSelect.value)
     preview.setStyle(style)
@@ -223,9 +228,21 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
   provider.awareness.on('change', renderPresence)
   renderPresence()
 
-  createEditor(sourcePane, local.ytext, local.undoManager, provider.awareness, (line, atEnd) =>
-    preview.scrollToSourceLine(line, atEnd),
+  const editor = createEditor(
+    sourcePane,
+    local.ytext,
+    local.undoManager,
+    provider.awareness,
+    (line, atEnd) => preview.scrollToSourceLine(line, atEnd),
   )
   preview.renderNow(local.ytext.toString())
-  window.__asciiweave = { ydoc: local.ydoc, ytext: local.ytext, provider }
+  window.__asciiweave = {
+    ydoc: local.ydoc,
+    ytext: local.ytext,
+    provider,
+    getSelection() {
+      const { anchor, head } = editor.state.selection.main
+      return { anchor, head }
+    },
+  }
 }

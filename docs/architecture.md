@@ -351,6 +351,15 @@ and each update reads the latest requested line, so a rapid direction change
 cannot leave an older movement queued. Preview content and iframe resize
 events reapply the current source position after layout changes.
 
+The parent also observes preview document scroll events with scripts still
+disabled. It maps rendered block positions back to source lines, interpolating
+between blocks, and follows those lines in CodeMirror without moving selection
+or focus. At the preview bottom, the source follows to its own bottom.
+Both directions remember the actual scroll position they set and ignore its
+scroll-event echo. A different position takes over immediately and cancels any
+pending movement in the opposite direction. Preview events are coalesced per
+animation frame, and listeners are replaced on render and removed on disposal.
+
 ## Resizable pane layout
 
 The editor layout uses three CSS Grid tracks: source, separator, and preview.

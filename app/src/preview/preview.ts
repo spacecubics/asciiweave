@@ -1,6 +1,6 @@
 import { load, type AbstractBlock } from '@asciidoctor/core'
 import { createRenderScheduler, type RenderScheduler } from './scheduler'
-import { sourceSpanForLine, type SourceAnchor } from './scroll-sync'
+import { sourceLineForPosition, sourceSpanForLine, type SourceAnchor } from './scroll-sync'
 import { applyStyle, previewPage } from './page'
 import { defaultStyle, type PreviewStyle } from './styles'
 
@@ -36,7 +36,11 @@ let renderSequence = 0
 // The parent needs same-origin DOM access to position the preview without
 // fragment navigations. Scripts remain disabled by both the sandbox and CSP;
 // nested frames, plugins, and form submissions are blocked as well.
-export function createPreview(container: HTMLElement, initialStyle = defaultStyle): Preview {
+export function createPreview(
+  container: HTMLElement,
+  initialStyle = defaultStyle,
+  onScroll?: (line: number, atEnd: boolean) => void,
+): Preview {
   const iframe = document.createElement('iframe')
   iframe.className = 'preview-frame'
   iframe.setAttribute('sandbox', 'allow-same-origin')
@@ -53,6 +57,39 @@ export function createPreview(container: HTMLElement, initialStyle = defaultStyl
   let followFrame: number | undefined
   let pendingPageLoad: (() => void) | undefined
   let contentObserver: ResizeObserver | undefined
+  let scrollDocument: Document | undefined
+  let followedTop: number | undefined
+  let previewFrame: number | undefined
+
+  const previewScrolled = (): void => {
+    const top = scrollDocument?.scrollingElement?.scrollTop
+    if (top === undefined || (followedTop !== undefined && Math.abs(top - followedTop) < 1)) return
+    followedTop = undefined
+    if (followFrame !== undefined) {
+      cancelAnimationFrame(followFrame)
+      followFrame = undefined
+    }
+    if (previewFrame !== undefined || disposed) return
+    previewFrame = requestAnimationFrame(() => {
+      previewFrame = undefined
+      const frameDocument = scrollDocument
+      const scroller = frameDocument?.scrollingElement
+      if (!frameDocument || !scroller || !rendered || !iframeLoaded) return
+      const positions = rendered.anchors.flatMap((anchor) => {
+        const element = frameDocument.getElementById(anchor.id)
+        return element
+          ? [{ line: anchor.line, top: element.getBoundingClientRect().top + scroller.scrollTop }]
+          : []
+      })
+      const line = sourceLineForPosition(positions, scroller.scrollTop)
+      if (line === undefined) return
+      requestedLine = line
+      requestedEnd =
+        scroller.scrollTop > 0 &&
+        scroller.scrollTop + (iframe.contentWindow?.innerHeight ?? 0) >= scroller.scrollHeight - 1
+      onScroll?.(line, requestedEnd)
+    })
+  }
 
   const followSource = (): void => {
     if (!rendered || !iframeLoaded) {
@@ -91,6 +128,7 @@ export function createPreview(container: HTMLElement, initialStyle = defaultStyl
     // Assigning scrollTop is synchronous and ignores CSS smooth-scrolling
     // behavior, so user-authored styles cannot leave animation work queued.
     scrollingElement.scrollTop = Math.min(Math.max(top, 0), maximum)
+    followedTop = scrollingElement.scrollTop
   }
 
   const scheduleFollowSource = (): void => {
@@ -111,6 +149,13 @@ export function createPreview(container: HTMLElement, initialStyle = defaultStyl
       iframe.removeEventListener('load', pendingPageLoad)
     }
     contentObserver?.disconnect()
+    scrollDocument?.removeEventListener('scroll', previewScrolled)
+    scrollDocument = undefined
+    followedTop = undefined
+    if (previewFrame !== undefined) {
+      cancelAnimationFrame(previewFrame)
+      previewFrame = undefined
+    }
 
     rendered = preview
     iframeLoaded = false
@@ -118,6 +163,8 @@ export function createPreview(container: HTMLElement, initialStyle = defaultStyl
       pendingPageLoad = undefined
       iframeLoaded = true
       if (iframe.contentDocument) {
+        scrollDocument = iframe.contentDocument
+        scrollDocument.addEventListener('scroll', previewScrolled)
         applyStyle(iframe.contentDocument, style, rendered?.language)
         void iframe.contentDocument.fonts.ready.then(scheduleFollowSource)
       }
@@ -156,6 +203,10 @@ export function createPreview(container: HTMLElement, initialStyle = defaultStyl
       scheduleFollowSource()
     },
     scrollToSourceLine(line, atEnd) {
+      if (previewFrame !== undefined) {
+        cancelAnimationFrame(previewFrame)
+        previewFrame = undefined
+      }
       requestedLine = line
       requestedEnd = atEnd
       scheduleFollowSource()
@@ -171,6 +222,8 @@ export function createPreview(container: HTMLElement, initialStyle = defaultStyl
       }
       iframeObserver.disconnect()
       contentObserver?.disconnect()
+      scrollDocument?.removeEventListener('scroll', previewScrolled)
+      if (previewFrame !== undefined) cancelAnimationFrame(previewFrame)
     },
   }
 }

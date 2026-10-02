@@ -15,6 +15,10 @@ and commands belong in [`testing.md`](testing.md).
   undo/redo, line wrapping, resizing, Unicode, and Japanese text.
 - Source text is preserved exactly.
 - The split source/preview layout remains usable on desktop and narrow screens.
+- The layout control offers Edit, Both, and View in that order. Documents open
+  with Both selected. Edit or View gives the selected pane the full workspace.
+- Switching layouts preserves document content, undo history, and the split
+  ratio. Each browser selects its own layout while collaboration stays active.
 - The separator resizes the source and preview with pointer or keyboard input,
   preserves a usable minimum for both panes, and adapts to the layout direction.
 - `GET /api/documents/<id>/source` exports current source as a `.adoc` file.

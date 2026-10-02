@@ -32,6 +32,9 @@ interface TableRowTargets {
 
 export interface Preview extends RenderScheduler {
   setStyle(style: PreviewStyle): void
+  /** Report preview scrolling before hiding or resizing the pane. */
+  flushScroll(): void
+  refreshLayout(): void
   /** Follow the first visible source line in the rendered preview. */
   scrollToSourceLine(line: number, atEnd: boolean): void
 }
@@ -112,7 +115,7 @@ export function createPreview(
     previewFrame = undefined
     const frameDocument = scrollDocument
     const scroller = frameDocument?.scrollingElement
-    if (!frameDocument || !scroller || !rendered || !iframeLoaded) return
+    if (container.hidden || !frameDocument || !scroller || !rendered || !iframeLoaded) return
     updateActiveHeading()
     positions ??= rendered.anchors.flatMap((anchor) => {
       const element = frameDocument.getElementById(anchor.id)
@@ -130,6 +133,7 @@ export function createPreview(
   }
 
   const previewScrolled = (): void => {
+    if (container.hidden) return
     const top = scrollDocument?.scrollingElement?.scrollTop
     if (top === undefined || (followedTop !== undefined && Math.abs(top - followedTop) < 1)) return
     followedTop = undefined
@@ -142,7 +146,7 @@ export function createPreview(
   }
 
   const followSource = (): void => {
-    if (!rendered || !iframeLoaded) {
+    if (container.hidden || !rendered || !iframeLoaded) {
       return
     }
 
@@ -269,6 +273,19 @@ export function createPreview(
 
   return {
     ...scheduler,
+    flushScroll() {
+      previewScrolled()
+      if (previewFrame === undefined) return
+      cancelAnimationFrame(previewFrame)
+      reportScroll()
+    },
+    refreshLayout() {
+      if (previewFrame !== undefined) cancelAnimationFrame(previewFrame)
+      previewFrame = undefined
+      layoutChanged()
+      // Restore before resize scroll events can replace the requested position.
+      followSource()
+    },
     setStyle(nextStyle) {
       style = nextStyle
       if (iframeLoaded && iframe.contentDocument) {

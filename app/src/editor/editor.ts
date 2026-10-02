@@ -21,22 +21,36 @@ const followedPositions = new WeakMap<EditorView, number>()
 const pendingScrolls = new WeakMap<EditorView, { line: number; atEnd: boolean }>()
 
 function editorTopForLine(view: EditorView, line: number, atEnd: boolean): number {
-  const clamped = Math.max(1, Math.min(line, view.state.doc.lines))
-  const block = view.lineBlockAt(view.state.doc.line(Math.floor(clamped)).from)
+  const lineNumber = Math.max(1, Math.min(Math.floor(line), view.state.doc.lines))
+  const block = view.lineBlockAt(view.state.doc.line(lineNumber).from)
   const top = atEnd
     ? view.scrollDOM.scrollHeight
-    : clamped === 1
+    : line === 1
       ? 0
-      : view.documentPadding.top + block.top + block.height * (clamped % 1)
+      : view.documentPadding.top + block.top + block.height * (line % 1)
   return Math.max(0, Math.min(top, view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight))
+}
+
+/** Capture the source line and progress through its wrapped rows. */
+export function getEditorScrollPosition(view: EditorView): { line: number; atEnd: boolean } {
+  const pending = pendingScrolls.get(view)
+  if (pending) return pending
+  const documentTop = view.scrollDOM.scrollTop - view.documentPadding.top
+  const block = view.lineBlockAtHeight(documentTop)
+  const progress = Math.max(0, Math.min((documentTop - block.top) / block.height, 1))
+  return {
+    line: view.state.doc.lineAt(block.from).number + progress,
+    atEnd:
+      view.scrollDOM.scrollTop + view.scrollDOM.clientHeight >= view.scrollDOM.scrollHeight - 1,
+  }
 }
 
 /** Follow preview scrolling without moving the selection or taking focus. */
 export function scrollEditorToLine(view: EditorView, line: number, atEnd: boolean): void {
-  const clamped = Math.max(1, Math.min(line, view.state.doc.lines))
-  pendingScrolls.set(view, { line: clamped, atEnd })
+  const lineNumber = Math.max(1, Math.min(Math.floor(line), view.state.doc.lines))
+  pendingScrolls.set(view, { line: Math.max(1, line), atEnd })
   view.dispatch({
-    effects: EditorView.scrollIntoView(view.state.doc.line(Math.floor(clamped)).from),
+    effects: EditorView.scrollIntoView(view.state.doc.line(lineNumber).from),
   })
 }
 
@@ -79,6 +93,8 @@ export function createEditor(
       }),
       EditorView.domEventHandlers({
         scroll(_event, view) {
+          // Wait for the requested preview position before reporting source scrolls.
+          if (pendingScrolls.has(view)) return
           const followed = followedPositions.get(view)
           if (followed !== undefined && Math.abs(view.scrollDOM.scrollTop - followed) < 1) return
           followedPositions.delete(view)

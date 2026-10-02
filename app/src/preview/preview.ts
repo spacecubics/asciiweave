@@ -108,6 +108,27 @@ export function createPreview(
 
   let positions: { line: number; top: number }[] | undefined
 
+  const reportScroll = (): void => {
+    previewFrame = undefined
+    const frameDocument = scrollDocument
+    const scroller = frameDocument?.scrollingElement
+    if (!frameDocument || !scroller || !rendered || !iframeLoaded) return
+    updateActiveHeading()
+    positions ??= rendered.anchors.flatMap((anchor) => {
+      const element = frameDocument.getElementById(anchor.id)
+      return element
+        ? [{ line: anchor.line, top: element.getBoundingClientRect().top + scroller.scrollTop }]
+        : []
+    })
+    const line = sourceLineForPosition(positions, scroller.scrollTop)
+    if (line === undefined) return
+    requestedLine = line
+    requestedEnd =
+      scroller.scrollTop > 0 &&
+      scroller.scrollTop + (iframe.contentWindow?.innerHeight ?? 0) >= scroller.scrollHeight - 1
+    onScroll?.(line, requestedEnd)
+  }
+
   const previewScrolled = (): void => {
     const top = scrollDocument?.scrollingElement?.scrollTop
     if (top === undefined || (followedTop !== undefined && Math.abs(top - followedTop) < 1)) return
@@ -117,26 +138,7 @@ export function createPreview(
       followFrame = undefined
     }
     if (previewFrame !== undefined || disposed) return
-    previewFrame = requestAnimationFrame(() => {
-      previewFrame = undefined
-      const frameDocument = scrollDocument
-      const scroller = frameDocument?.scrollingElement
-      if (!frameDocument || !scroller || !rendered || !iframeLoaded) return
-      updateActiveHeading()
-      positions ??= rendered.anchors.flatMap((anchor) => {
-        const element = frameDocument.getElementById(anchor.id)
-        return element
-          ? [{ line: anchor.line, top: element.getBoundingClientRect().top + scroller.scrollTop }]
-          : []
-      })
-      const line = sourceLineForPosition(positions, scroller.scrollTop)
-      if (line === undefined) return
-      requestedLine = line
-      requestedEnd =
-        scroller.scrollTop > 0 &&
-        scroller.scrollTop + (iframe.contentWindow?.innerHeight ?? 0) >= scroller.scrollHeight - 1
-      onScroll?.(line, requestedEnd)
-    })
+    previewFrame = requestAnimationFrame(reportScroll)
   }
 
   const followSource = (): void => {

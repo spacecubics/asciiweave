@@ -1,4 +1,7 @@
 import { createToc } from './toc'
+import { blockSourceRange } from './source-range'
+import { Text } from '@codemirror/state'
+import type { SourceRange } from '../scroll/reading-position'
 import type { ScrollCoordinator, ScrollRequest, SourcePosition } from '../scroll/coordinator'
 import { load, type AbstractBlock, type Block } from '@asciidoctor/core'
 import { createRenderScheduler, type RenderScheduler } from './scheduler'
@@ -11,7 +14,7 @@ import { createDiagramViewer } from './diagram-viewer'
 
 interface RenderedPreview {
   html: string
-  anchors: SourceAnchor[]
+  anchors: Array<SourceAnchor & SourceRange>
   headingIds: string[]
   language?: string
 }
@@ -299,9 +302,19 @@ export async function renderPreview(
     sourcemap: true,
   })
   signal?.throwIfAborted()
+  const sourceText = Text.of(source.split('\n'))
   const prefix = `asciiweave-source-${++renderSequence}`
-  const anchors: SourceAnchor[] = []
+  const anchors: Array<SourceAnchor & SourceRange> = []
   const titleId = `${prefix}-title`
+  const header = document.getHeader() as AbstractBlock | null
+  if (header) {
+    anchors.push({
+      line: header.getLineNumber() ?? 1,
+      id: titleId,
+      ...blockSourceRange(header, sourceText),
+      kind: 'document-title',
+    })
+  }
   const headingIds: string[] = document.hasHeader() ? [titleId] : []
   const tableRowTargets: TableRowTargets[] = []
   const diagrams: D2Block[] = []
@@ -334,7 +347,7 @@ export async function renderPreview(
           block.setId(blockId)
         }
         assignedIds.add(blockId)
-        anchors.push({ line, id: blockId })
+        anchors.push({ line, id: blockId, ...blockSourceRange(block, sourceText) })
         if (context === 'section') headingIds.push(blockId)
       }
 
@@ -362,7 +375,14 @@ export async function renderPreview(
             const rowId = nextId()
             rowIds.push(rowId)
             for (const cellLine of lines) {
-              anchors.push({ line: cellLine, id: rowId })
+              const cellSource = sourceText.line(Math.min(sourceText.lines, Math.max(1, cellLine)))
+              anchors.push({
+                line: cellLine,
+                id: rowId,
+                from: cellSource.from,
+                to: cellSource.to,
+                kind: 'table-row',
+              })
             }
           }
         }

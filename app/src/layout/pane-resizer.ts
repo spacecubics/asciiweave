@@ -36,16 +36,21 @@ export function paneRatioForKey(
   return clampPaneRatio(ratio + (increase ? KEYBOARD_STEP : -KEYBOARD_STEP))
 }
 
-export function createPaneResizer(container: HTMLElement, handle: HTMLElement): void {
+export function createPaneResizer(
+  container: HTMLElement,
+  handle: HTMLElement,
+  changeLayout: (change: () => void) => void = (change) => change(),
+): void {
   const narrowLayout = matchMedia(NARROW_LAYOUT)
   let orientation: PaneOrientation = narrowLayout.matches ? 'horizontal' : 'vertical'
   let ratio = 0.5
 
-  const applyRatio = (): void => {
-    container.style.setProperty('--source-pane-share', `${ratio}fr`)
-    container.style.setProperty('--preview-pane-share', `${1 - ratio}fr`)
-    handle.setAttribute('aria-valuenow', String(Math.round(ratio * 100)))
-  }
+  const applyRatio = (): void =>
+    changeLayout(() => {
+      container.style.setProperty('--source-pane-share', `${ratio}fr`)
+      container.style.setProperty('--preview-pane-share', `${1 - ratio}fr`)
+      handle.setAttribute('aria-valuenow', String(Math.round(ratio * 100)))
+    })
 
   const updateOrientation = (): void => {
     orientation = narrowLayout.matches ? 'horizontal' : 'vertical'

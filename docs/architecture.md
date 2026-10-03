@@ -491,6 +491,19 @@ Source scroll requests use CodeMirror's scroll effect and handler to apply the
 destination after measurement. These requests preserve selection and focus.
 The handler consumes obsolete requests without scrolling.
 
+Divider, TOC, and style changes use `changeLayout` to:
+
+1. Check both panes for movement since the last observation.
+2. Capture any newly observed position and flush pending scroll requests.
+3. Change the layout.
+4. Schedule the owner's restoration and the other pane's scroll to the
+   corresponding source-line position.
+
+Checking offsets cannot make an older, already observed scroll control the panes
+again. If both panes move without delivering events, the previous owner wins the tie.
+The browser's final offsets cannot establish which unobserved movement happened
+last.
+
 Resize observers and preview replacement invalidate geometry and request
 restoration from the retained bookmark. Font loading and content resizing use
 the same path. The preview caches anchor and heading positions between geometry

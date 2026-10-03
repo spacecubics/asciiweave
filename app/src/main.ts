@@ -140,14 +140,14 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
   }
 
   const scrollSync = createScrollCoordinator()
-  createPaneResizer(panes, paneResizer)
+  createPaneResizer(panes, paneResizer, scrollSync.changeLayout)
   let style = resolveStyle(browserPreferences.getItem(STYLE_KEY))
   styleSelect.replaceChildren(...previewStyles.map((entry) => new Option(entry.name, entry.id)))
   styleSelect.value = style.id
   const preview = createPreview(previewPane, scrollSync, style)
   styleSelect.addEventListener('change', () => {
     style = resolveStyle(styleSelect.value)
-    preview.setStyle(style)
+    scrollSync.changeLayout(() => preview.setStyle(style))
     browserPreferences.setItem(STYLE_KEY, style.id)
   })
 

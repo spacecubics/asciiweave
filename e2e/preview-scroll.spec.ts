@@ -1,17 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
-import { createDoc, replaceSource, setSourceViaYjs } from './helpers'
-
-async function firstSourceLine(page: Page): Promise<number> {
-  return page.locator('.cm-scroller').evaluate((scroller) => {
-    const top = scroller.getBoundingClientRect().top
-    const gutter = Array.from(
-      scroller.closest('.cm-editor')!.querySelectorAll('.cm-gutterElement'),
-    ).find(
-      (element) => element.getBoundingClientRect().bottom > top && Number(element.textContent) > 0,
-    )
-    return Number(gutter?.textContent)
-  })
-}
+import { expect, test } from '@playwright/test'
+import { createDoc, firstSourceLine, replaceSource, setSourceViaYjs } from './helpers'
 
 test('preview scrolling follows blocks, reversals, endpoints, links, and replacement documents', async ({
   page,

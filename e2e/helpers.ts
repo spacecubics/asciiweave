@@ -35,6 +35,46 @@ export function getText(page: Page): Promise<string> {
   return page.evaluate(() => window.__asciiweave?.ytext.toString() ?? '')
 }
 
+export function firstSourceLine(page: Page): Promise<number> {
+  return page.locator('.cm-scroller').evaluate((scroller) => {
+    const top = scroller.getBoundingClientRect().top
+    const gutter = Array.from(
+      scroller.closest('.cm-editor')!.querySelectorAll('.cm-gutterElement'),
+    ).find(
+      (element) => element.getBoundingClientRect().bottom > top && Number(element.textContent) > 0,
+    )
+    return Number(gutter?.textContent)
+  })
+}
+
+export async function scrollSourceToLine(page: Page, line: number): Promise<void> {
+  await page.locator('.cm-scroller').evaluate(async (scroller, targetLine) => {
+    const content = scroller.querySelector<HTMLElement>('.cm-content')
+    const renderedLine = content?.querySelector<HTMLElement>('.cm-line')
+    if (!content || !renderedLine) {
+      throw new Error('missing rendered CodeMirror line')
+    }
+
+    const lineHeight = renderedLine.getBoundingClientRect().height
+    const paddingTop = Number.parseFloat(getComputedStyle(content).paddingTop)
+    scroller.scrollTop = paddingTop + (targetLine - 1) * lineHeight
+    scroller.dispatchEvent(new Event('scroll'))
+    await new Promise(requestAnimationFrame)
+
+    // Fractional line heights accumulate error over a long document. Once
+    // CodeMirror has rendered the target, align its gutter line exactly.
+    const gutterLine = Array.from(
+      scroller.closest('.cm-editor')!.querySelectorAll<HTMLElement>('.cm-gutterElement'),
+    ).find((element) => element.textContent === String(targetLine))
+    if (!gutterLine) {
+      throw new Error('missing target CodeMirror gutter line')
+    }
+    scroller.scrollTop +=
+      gutterLine.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 1
+    scroller.dispatchEvent(new Event('scroll'))
+  }, line)
+}
+
 export async function replaceSource(page: Page, source: string): Promise<void> {
   await page.locator('.cm-content').click()
   await page.keyboard.press('ControlOrMeta+a')

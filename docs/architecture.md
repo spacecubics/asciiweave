@@ -497,8 +497,10 @@ style changes capture pending navigation before changing the layout.
 
 The preview caches rendered geometry. Rendering, resizing, font readiness,
 and style changes invalidate the cache. CodeMirror measures virtual lines
-before applying source scroll requests. Top and bottom positions remain at
-the corresponding document edge after reflow.
+before applying source scroll requests. Source-to-preview scrolling uses only
+anchors with a matching HTML element. Raw passthrough blocks can lack such an
+element. Scrolling across those blocks uses neighboring anchors when available.
+Top and bottom positions remain at the corresponding document edge after reflow.
 
 ## Resizable pane layout
 

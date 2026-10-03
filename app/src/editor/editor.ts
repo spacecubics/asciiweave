@@ -52,7 +52,28 @@ export function createEditor(
   awareness: Awareness,
   onScroll?: (line: number, atEnd: boolean) => void,
 ): EditorView {
-  return new EditorView({
+  const capture = () => {
+    // CodeMirror's height coordinate starts below its document padding,
+    // while scrollTop includes that padding. Subtract it so a sliver of
+    // the preceding line cannot select the following source block.
+    const documentTop = view.scrollDOM.scrollTop - view.documentPadding.top
+    const firstVisible = view.lineBlockAtHeight(documentTop)
+    const line = view.state.doc.lineAt(firstVisible.from).number
+    const atEnd =
+      view.scrollDOM.scrollTop + view.scrollDOM.clientHeight >= view.scrollDOM.scrollHeight - 1
+    return { line, atEnd }
+  }
+  const applyScroll = (view: EditorView): boolean => {
+    const requested = pendingScrolls.get(view)
+    if (!requested) return false
+    pendingScrolls.delete(view)
+    // Run after CodeMirror measures the destination's virtual lines, so
+    // its height correction cannot feed an extra scroll back to preview.
+    view.scrollDOM.scrollTop = editorTopForLine(view, requested.line, requested.atEnd)
+    followedPositions.set(view, view.scrollDOM.scrollTop)
+    return true
+  }
+  const view = new EditorView({
     parent: container,
     doc: ytext.toString(),
     extensions: [
@@ -67,16 +88,7 @@ export function createEditor(
       highlightActiveLine(),
       highlightSelectionMatches(),
       EditorView.lineWrapping,
-      EditorView.scrollHandler.of((view) => {
-        const requested = pendingScrolls.get(view)
-        if (!requested) return false
-        pendingScrolls.delete(view)
-        // Run after CodeMirror measures the destination's virtual lines, so
-        // its height correction cannot feed an extra scroll back to preview.
-        view.scrollDOM.scrollTop = editorTopForLine(view, requested.line, requested.atEnd)
-        followedPositions.set(view, view.scrollDOM.scrollTop)
-        return true
-      }),
+      EditorView.scrollHandler.of(applyScroll),
       EditorView.domEventHandlers({
         scroll(_event, view) {
           const followed = followedPositions.get(view)
@@ -86,15 +98,7 @@ export function createEditor(
             return
           }
 
-          // CodeMirror's height coordinate starts below its document padding,
-          // while scrollTop includes that padding. Subtract it so a sliver of
-          // the preceding line cannot select the following source block.
-          const documentTop = view.scrollDOM.scrollTop - view.documentPadding.top
-          const firstVisible = view.lineBlockAtHeight(documentTop)
-          const line = view.state.doc.lineAt(firstVisible.from).number
-          const atEnd =
-            view.scrollDOM.scrollTop + view.scrollDOM.clientHeight >=
-            view.scrollDOM.scrollHeight - 1
+          const { line, atEnd } = capture()
           onScroll(line, atEnd)
         },
       }),
@@ -104,4 +108,5 @@ export function createEditor(
       yCollab(ytext, awareness, { undoManager }),
     ],
   })
+  return view
 }

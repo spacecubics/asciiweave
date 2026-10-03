@@ -139,7 +139,7 @@ export function createPreview(
     })
   }
 
-  const followSource = (): void => {
+  const followSource = (line: number, atEnd: boolean): void => {
     if (!rendered || !iframeLoaded) {
       return
     }
@@ -151,7 +151,7 @@ export function createPreview(
       return
     }
 
-    const span = sourceSpanForLine(rendered.anchors, requestedLine, requestedEnd)
+    const span = sourceSpanForLine(rendered.anchors, line, atEnd)
     const maximum = Math.max(0, scrollingElement.scrollHeight - frameWindow.innerHeight)
     let top = 0
 
@@ -189,7 +189,7 @@ export function createPreview(
     // only the newest source position once per frame, without queued motion.
     followFrame = requestAnimationFrame(() => {
       followFrame = undefined
-      followSource()
+      followSource(requestedLine, requestedEnd)
     })
   }
 
@@ -240,7 +240,7 @@ export function createPreview(
         applyStyle(iframe.contentDocument, style, rendered?.language)
         void iframe.contentDocument.fonts.ready.then(layoutChanged)
       }
-      followSource()
+      followSource(requestedLine, requestedEnd)
 
       const body = iframe.contentDocument?.body
       if (body) {

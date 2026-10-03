@@ -60,6 +60,7 @@ export function createEditor(
     const firstVisible = view.lineBlockAtHeight(documentTop)
     const line = view.state.doc.lineAt(firstVisible.from).number
     const atEnd =
+      view.scrollDOM.scrollTop > 0 &&
       view.scrollDOM.scrollTop + view.scrollDOM.clientHeight >= view.scrollDOM.scrollHeight - 1
     return { line, atEnd }
   }

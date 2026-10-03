@@ -13,6 +13,7 @@ export interface ScrollBookmark {
 }
 
 export interface ScrollAdapter {
+  isVisible(): boolean
   capture(): ScrollBookmark | undefined
   follow(position: SourcePosition, current: ScrollRequest): void
   poll(): void
@@ -33,15 +34,16 @@ export function createScrollCoordinator(
   let frame: number | undefined
   let disposed = false
   const layouts = new Set<ScrollPane>()
+  const visible = (pane: ScrollPane) => panes[pane]?.isVisible() ?? false
 
   const flush = (): void => {
     if (frame !== undefined) cancel(frame)
     frame = undefined
     if (disposed) return
-    panes.source?.refresh?.()
-    panes.preview?.refresh?.()
+    if (visible('source')) panes.source?.refresh?.()
+    if (visible('preview')) panes.preview?.refresh?.()
     const moved = navigation
-    if (!bookmark) bookmark = panes[owner]?.capture()
+    if (!bookmark && visible(owner)) bookmark = panes[owner]?.capture()
     navigation = false
     const restoreOwner = layouts.has(owner)
     const follower = owner === 'source' ? 'preview' : 'source'
@@ -51,10 +53,10 @@ export function createScrollCoordinator(
     const version = revision
     const request = (pane: ScrollPane): ScrollRequest => {
       const id = ++requests[pane]
-      return () => !disposed && revision === version && requests[pane] === id
+      return () => !disposed && visible(pane) && revision === version && requests[pane] === id
     }
-    if (restoreOwner) bookmark.restore(request(owner))
-    if (follow) panes[follower]?.follow(bookmark.position, request(follower))
+    if (restoreOwner && visible(owner)) bookmark.restore(request(owner))
+    if (follow && visible(follower)) panes[follower]?.follow(bookmark.position, request(follower))
   }
 
   const enqueue = (): void => {
@@ -72,7 +74,7 @@ export function createScrollCoordinator(
       panes[pane] = adapter
     },
     navigate(pane: ScrollPane) {
-      if (disposed) return
+      if (disposed || !visible(pane)) return
       owner = pane
       revision++
       bookmark = panes[pane]?.capture()
@@ -83,10 +85,12 @@ export function createScrollCoordinator(
     changeLayout(change: () => void) {
       // Poll the owner last to break ties between movements without events.
       const active = owner
-      panes[active === 'source' ? 'preview' : 'source']?.poll()
-      panes[active]?.poll()
+      const other = active === 'source' ? 'preview' : 'source'
+      if (visible(other)) panes[other]?.poll()
+      if (visible(active)) panes[active]?.poll()
       flush()
       change()
+      revision++
       layoutChanged('source')
       layoutChanged('preview')
     },

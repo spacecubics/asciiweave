@@ -19,6 +19,7 @@ function setup() {
   )
   const positions: Record<ScrollPane, number> = { source: 1, preview: 1 }
   const observed = { ...positions }
+  const visible = { source: true, preview: true }
   const writes: Array<{ pane: ScrollPane; line: number; restore: boolean }> = []
   const deferred: Array<() => void> = []
   let delay = false
@@ -33,6 +34,7 @@ function setup() {
       else apply()
     }
     sync.attach(pane, {
+      isVisible: () => visible[pane],
       capture() {
         const line = positions[pane]
         // The cross-pane projection deliberately loses within-block progress.
@@ -49,6 +51,7 @@ function setup() {
   }
   return {
     sync,
+    visible,
     positions,
     observed,
     writes,
@@ -183,5 +186,72 @@ describe('scroll ownership', () => {
     h.deferred.forEach((apply) => apply())
     h.tick()
     expect(h.writes).toEqual([])
+  })
+
+  it.each(['source', 'preview'] as const)(
+    'retains the %s bookmark while its pane is hidden',
+    (pane) => {
+      const h = setup()
+      const other = pane === 'source' ? 'preview' : 'source'
+      h.move(pane, 12.5)
+      h.tick()
+      h.writes.length = 0
+      h.sync.changeLayout(() => {
+        h.visible[pane] = false
+        h.positions[pane] = 0
+      })
+      h.tick()
+      h.move(pane, 1)
+      h.sync.layoutChanged(pane)
+      h.tick()
+      expect(h.positions[other]).toBe(12)
+      expect(h.writes.every((write) => write.pane === other)).toBe(true)
+      h.sync.changeLayout(() => {
+        h.visible[pane] = true
+      })
+      h.tick()
+      expect(h.positions[pane]).toBe(12.5)
+    },
+  )
+
+  it.each(['source', 'preview'] as const)(
+    'follows newer visible navigation when revealing %s',
+    (pane) => {
+      const h = setup()
+      const other = pane === 'source' ? 'preview' : 'source'
+      h.move(pane, 12.5)
+      h.tick()
+      h.sync.changeLayout(() => {
+        h.visible[pane] = false
+      })
+      h.tick()
+      h.move(other, 31.5)
+      h.tick()
+      expect(h.positions[pane]).toBe(12.5)
+      h.sync.changeLayout(() => {
+        h.visible[pane] = true
+      })
+      h.tick()
+      expect(h.positions).toEqual({ [pane]: 31, [other]: 31.5 })
+    },
+  )
+
+  it('invalidates a pending scroll across hiding and showing before the next frame', () => {
+    const h = setup()
+    h.delay()
+    h.move('preview', 20)
+    h.tick()
+    const oldFollow = h.deferred[0]!
+    h.sync.changeLayout(() => {
+      h.visible.source = false
+    })
+    h.sync.changeLayout(() => {
+      h.visible.source = true
+    })
+    oldFollow()
+    expect(h.positions.source).toBe(1)
+    h.tick()
+    h.deferred.forEach((apply) => apply())
+    expect(h.positions.source).toBe(20)
   })
 })

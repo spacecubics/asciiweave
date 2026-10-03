@@ -236,3 +236,82 @@ test('source line-height corrections preserve the preview reading position', asy
     expect(Math.abs((await markerTop(page, 'Later section'))! - original)).toBeLessThan(3)
   }
 })
+
+for (const syntax of ['list', 'comments', 'conditional'] as const) {
+  test(`preview navigation follows the complete ${syntax} source extent`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await createDoc(page)
+    const lines = Array.from({ length: 120 }, (_, index) => {
+      const text = `Target${String(index).padStart(4, '0')} reading text.`
+      if (syntax === 'list') return '* ' + text
+      if (syntax === 'comments') return text + ' +\n// omitted comment'
+      return text + ' +\nifdef::missing[]\nOmitted text.\nendif::[]'
+    })
+    const source = '== Start\n\n' + lines.join('\n') + after
+    await setSourceViaYjs(page, source)
+    await expect(page.frameLocator('.preview-frame').locator('body')).toContainText('Target0119')
+    await settle(page)
+    await markerTop(page, 'Target0060', true)
+    await settle(page)
+    expect(Math.abs((await markerTop(page, 'Target0060'))! - 8)).toBeLessThan(1)
+    const firstSourceLine = await page.locator('.cm-scroller').evaluate((scroller) => {
+      const top = scroller.getBoundingClientRect().top
+      return Number(
+        Array.from(scroller.closest('.cm-editor')!.querySelectorAll('.cm-gutterElement')).find(
+          (element) =>
+            element.getBoundingClientRect().bottom > top && Number(element.textContent) > 0,
+        )?.textContent,
+      )
+    })
+    const expectedLine = source.slice(0, source.indexOf('Target0060')).split('\n').length
+    expect(Math.abs(firstSourceLine - expectedLine)).toBeLessThan(6)
+  })
+}
+
+test('a list retains its reading region when a remote edit turns it into a listing', async ({
+  page,
+  browser,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  const url = await createDoc(page)
+  const list = Array.from(
+    { length: 120 },
+    (_, index) => `* Item${String(index).padStart(4, '0')} reading text.`,
+  ).join('\n')
+  const source = before + list + after
+  await setSourceViaYjs(page, source)
+  await expect(page.frameLocator('.preview-frame').locator('body')).toContainText('Item0119')
+  const context = await browser.newContext()
+  try {
+    const remote = await context.newPage()
+    await remote.goto(url)
+    await expect.poll(() => getText(remote)).toBe(source)
+    await settle(page)
+    await markerTop(page, 'Item0060', true)
+    await settle(page)
+    const original = (await markerTop(page, 'Item0060'))!
+    await remote.evaluate(
+      ({ start, end }) => {
+        const h = window.__asciiweave!
+        h.ydoc.transact(() => {
+          h.ytext.insert(end, '\n----')
+          h.ytext.insert(start, '----\n')
+        })
+      },
+      { start: before.length, end: before.length + list.length },
+    )
+    await expect(page.frameLocator('.preview-frame').locator('.listingblock')).toContainText(
+      'Item0060',
+    )
+    await settle(page)
+    expect(Math.abs((await markerTop(page, 'Item0060'))! - original)).toBeLessThan(60)
+    await remote.locator('.cm-content').focus()
+    await remote.keyboard.press('ControlOrMeta+z')
+    await expect.poll(() => getText(page)).toBe(source)
+    await expect(page.frameLocator('.preview-frame').locator('.listingblock')).toHaveCount(0)
+    await settle(page)
+    expect(Math.abs((await markerTop(page, 'Item0060'))! - original)).toBeLessThan(3)
+  } finally {
+    await context.close()
+  }
+})

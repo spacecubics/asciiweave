@@ -196,16 +196,20 @@ npm run test:e2e -- e2e/toc.spec.ts e2e/preview-scroll.spec.ts
 
 `app/tests/reading-position.test.ts` covers tracked source ranges, remote edits,
 undo, and projection to a temporary visible block. `app/tests/source-range.test.ts`
-checks parser source ranges for unfinished blocks, heading markers, attribute
-expansion, and line endings. `app/tests/scroll-coordinator.test.ts` checks
-navigation order and cancellation of obsolete scroll requests.
+checks parser source ranges for closed and unfinished delimiters, nested blocks,
+lists, comments, conditional branches, heading markers, attribute expansion,
+and line endings. Ambiguous content must produce a source point.
+`app/tests/scroll-coordinator.test.ts` checks navigation order and cancellation
+of obsolete scroll requests.
 
 `e2e/reading-position.spec.ts` uses independent browser clients to check remote
 edits and undo while another client reads the preview. Cases include unfinished
 listings, hidden comments, merged paragraphs, heading changes, and unfinished
 tables. Navigation during a temporary state must replace the previous reading
 position. Both panes retain progress in a long final line after remote edits
-above it.
+above it. Preview navigation follows the complete source extent of lists and
+paragraphs with omitted content. A remote edit that converts a list to a listing
+preserves the reading region. Undo restores the saved reading position.
 
 `e2e/scroll-model.spec.ts` covers wrapped lines, preview reflow, documents that
 gain overflow, bottom alignment when only the preview overflows, and navigation

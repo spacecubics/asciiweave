@@ -461,11 +461,19 @@ that browser. TOC navigation moves the preview and gives it control. Automatic
 scrolling preserves the editor's selection and focus. Reading positions stay local
 to the browser.
 
-Asciidoctor source locations identify blocks and table rows. The renderer
-records their source ranges before converting the HTML. An accepted render
-binds those ranges to Yjs relative positions. The render scheduler discards
-obsolete conversions, so the ranges belong to the source revision that
-produced the displayed HTML. Heading ranges start after the heading marker.
+Asciidoctor source locations identify block starts and table rows. The renderer
+derives source ranges within parent and sibling boundaries before converting
+the HTML. A verified opening delimiter starts a range that includes the closing
+delimiter, or ends at the parent boundary when unfinished. Lists include their
+items and attached blocks.
+The renderer matches parser content against the original source to account for
+removed comments and conditional branches. If the match is ambiguous or the
+parser transforms the content beyond recognition, the range becomes a single
+source point. A source point records a location without claiming a block extent.
+
+An accepted render binds the ranges to Yjs relative positions. The render
+scheduler discards obsolete conversions, so the ranges belong to the source
+revision that produced the displayed HTML. Heading ranges start after the heading marker.
 Anchoring the title text preserves the heading location when its marker changes.
 
 A saved reading position contains a tracked source range and geometric progress

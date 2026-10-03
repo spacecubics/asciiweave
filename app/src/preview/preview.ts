@@ -1,5 +1,5 @@
 import { createToc } from './toc'
-import { blockSourceRange } from './source-range'
+import { sourceRanges } from './source-range'
 import { Text } from '@codemirror/state'
 import type * as Y from 'yjs'
 import {
@@ -389,6 +389,7 @@ export async function renderPreview(
   })
   signal?.throwIfAborted()
   const sourceText = Text.of(source.split('\n'))
+  const blockRanges = sourceRanges(document, sourceText)
   const prefix = `asciiweave-source-${++renderSequence}`
   const anchors: Array<SourceAnchor & SourceRange> = []
   const titleId = `${prefix}-title`
@@ -397,7 +398,7 @@ export async function renderPreview(
     anchors.push({
       line: header.getLineNumber() ?? 1,
       id: titleId,
-      ...blockSourceRange(header, sourceText),
+      ...blockRanges.get(header)!,
       kind: 'document-title',
     })
   }
@@ -433,7 +434,7 @@ export async function renderPreview(
           block.setId(blockId)
         }
         assignedIds.add(blockId)
-        anchors.push({ line, id: blockId, ...blockSourceRange(block, sourceText) })
+        anchors.push({ line, id: blockId, ...blockRanges.get(block)! })
         if (context === 'section') headingIds.push(blockId)
       }
 

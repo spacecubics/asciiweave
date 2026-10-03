@@ -1,8 +1,30 @@
-import type { AbstractBlock, Block } from '@asciidoctor/core'
+import type { AbstractBlock, Block, Document } from '@asciidoctor/core'
 import type { Text } from '@codemirror/state'
 import type { SourceRange } from '../scroll/reading-position'
 
-export function blockSourceRange(block: AbstractBlock, sourceText: Text): SourceRange {
+function children(block: AbstractBlock): AbstractBlock[] {
+  const blocks = block.getBlocks()
+  return block.getContext() === 'dlist' ? blocks.flat(2).filter(Boolean) : blocks
+}
+
+export function sourceRanges(
+  document: Document,
+  sourceText: Text,
+): Map<AbstractBlock, SourceRange> {
+  const ranges = new Map<AbstractBlock, SourceRange>()
+  const visit = (blocks: AbstractBlock[]) => {
+    for (const block of blocks) {
+      ranges.set(block, blockSourceRange(block, sourceText))
+      visit(children(block))
+    }
+  }
+  const header = document.getHeader() as AbstractBlock | null
+  if (header) ranges.set(header, blockSourceRange(header, sourceText))
+  visit(document.getBlocks())
+  return ranges
+}
+
+function blockSourceRange(block: AbstractBlock, sourceText: Text): SourceRange {
   const line = block.getLineNumber() ?? 1
   const first = sourceText.line(Math.max(1, Math.min(sourceText.lines, line)))
   const kind = block.getContext()

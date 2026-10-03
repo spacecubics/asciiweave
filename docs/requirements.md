@@ -49,12 +49,14 @@ and commands belong in [`testing.md`](testing.md).
 - Scrolling the preview moves the source to the corresponding block or
   interpolated line without changing selection or focus. Synchronization must
   not feed scroll events back into the pane being scrolled.
-- The pane with the latest observed navigation controls where the other pane
-  scrolls. Deferred movement from an older navigation must not override a newer
-  position.
-- Resizing preserves progress within the source pane's wrapped line when the
-  source pane controls scrolling, including the final line. A document at the
-  top remains at the top when resizing introduces overflow.
+- Keep each browser's reading position attached to source content through local
+  and remote edits. Progress within a changed block is approximate.
+- If incomplete syntax hides or restructures the reading region, use a nearby
+  display position while retaining the saved source range. Restore that range
+  when it returns, unless the reader has navigated elsewhere.
+- Preserve the controlling pane's reading position when the pane layout or
+  preview style changes. Programmatic scrolling must not replace the saved
+  position with a temporary fallback.
 - Treat rendered document content as untrusted. Keep it in a sandboxed iframe
   with `allow-same-origin` only so the parent can synchronize its scroll
   position. Keep scripts disabled by both the sandbox and a restrictive

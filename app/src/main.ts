@@ -139,12 +139,13 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
     return
   }
 
+  const local = createLocalDocument()
   const scrollSync = createScrollCoordinator()
   createPaneResizer(panes, paneResizer, scrollSync.changeLayout)
   let style = resolveStyle(browserPreferences.getItem(STYLE_KEY))
   styleSelect.replaceChildren(...previewStyles.map((entry) => new Option(entry.name, entry.id)))
   styleSelect.value = style.id
-  const preview = createPreview(previewPane, scrollSync, style)
+  const preview = createPreview(previewPane, scrollSync, local.ytext, style)
   styleSelect.addEventListener('change', () => {
     style = resolveStyle(styleSelect.value)
     scrollSync.changeLayout(() => preview.setStyle(style))
@@ -158,7 +159,6 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
   // renders its own preview locally; HTML is never shared. Persistence
   // happens on the server from the collaborative state — there is no
   // client-side save path anymore.
-  const local = createLocalDocument()
   let hasSynced = false
   let printing = false
   printButton.addEventListener('click', () => {

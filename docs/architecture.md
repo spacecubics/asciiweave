@@ -455,66 +455,42 @@ the iframe document; application UI CSS is kept separate. Conversion runs
 with Asciidoctor's default `secure` safe mode, so `include::` does not read
 files.
 
-### Scroll ownership and bookmarks
+Each browser has a scroll coordinator for its source and preview panes. The
+pane with the latest navigation controls the shared reading position within
+that browser. TOC navigation moves the preview and gives it control. Automatic
+scrolling preserves the editor's selection and focus. Reading positions stay local
+to the browser.
 
-The pane with the latest observed navigation controls where the other pane
-scrolls. `app/src/scroll/coordinator.ts` tracks this pane as the scroll owner.
-Layout changes preserve ownership.
+Asciidoctor source locations identify blocks and table rows. The renderer
+records their source ranges before converting the HTML. An accepted render
+binds those ranges to Yjs relative positions. The render scheduler discards
+obsolete conversions, so the ranges belong to the source revision that
+produced the displayed HTML. Heading ranges start after the heading marker.
+Anchoring the title text preserves the heading location when its marker changes.
 
-Each observed navigation increments a revision counter. The owner captures its
-position immediately, before a later resize can change the coordinates. The
-coordinator batches scroll requests and heading updates into one animation frame.
-A deferred scroll request applies only if its navigation revision is current.
-The request must also be the latest request for its destination pane.
+A saved reading position contains a tracked source range and geometric progress
+within the source line or preview block. Yjs moves the range endpoints through
+local and remote edits. The coordinator resolves the range when following or
+restoring a pane. Progress remains approximate when edits change the contents
+of the range. Deleting the anchored content can collapse the range to a nearby
+source boundary. Undo of that deletion does not guarantee the original position.
 
-The source pane captures two representations of its position. A source-line
-position approximates where the preview should scroll. A native bookmark records
-a source range tracked by Yjs and proportional progress through its wrapped
-rows. The source pane resolves this range after edits and restores its progress
-after reflow. Edits that delete the anchored content can collapse the range to
-a nearby source boundary.
+If an edit merges the reading range into another block, the preview estimates
+its position within that block. If the range has no rendered counterpart, the
+preview uses the nearest visible source range. These temporary display
+positions leave the saved reading range intact. The preview can restore the
+saved position when the region returns. A new scroll or TOC selection replaces the saved
+position, including while the original region is hidden.
 
-The preview captures its position as a source line and an end-alignment flag.
-The coordinator retains this bookmark to restore the preview after layout changes.
-The source pane follows the same source-line position.
+The coordinator coalesces navigation and layout changes per animation frame.
+Each scheduled scroll checks that its request is still current. Panes record
+the offsets they apply to suppress scroll-event feedback. Divider, TOC, and
+style changes capture pending navigation before changing the layout.
 
-A pane at the bottom with a positive scroll offset requests alignment with the
-document end. A document that fits entirely retains its top position when
-resizing introduces overflow.
-
-Asciidoctor source maps associate rendered blocks and table rows with source
-lines. Cross-pane following interpolates between those anchors. The mapping is
-approximate: AsciiDoc syntax, nested blocks, and wrapped text do not have a
-one-to-one visual correspondence. Restoring the preview from a source-line
-position also loses progress within a rendered block.
-
-Each pane's adapter remembers the latest observed scroll offset, including
-offsets set by code. The adapter ignores repeated scroll events at that offset.
-The source adapter records navigation before CodeMirror applies a pending scroll
-request. After CodeMirror corrects virtual line heights, the adapter records the
-resulting offset without treating the correction as navigation.
-
-Source scroll requests use CodeMirror's scroll effect and handler to apply the
-destination after measurement. These requests preserve selection and focus.
-The handler consumes obsolete requests without scrolling.
-
-Divider, TOC, and style changes use `changeLayout` to:
-
-1. Check both panes for movement since the last observation.
-2. Capture any newly observed position and flush pending scroll requests.
-3. Change the layout.
-4. Schedule the owner's restoration and the other pane's scroll to the
-   corresponding source-line position.
-
-Checking offsets cannot make an older, already observed scroll control the panes
-again. If both panes move without delivering events, the previous owner wins the tie.
-The browser's final offsets cannot establish which unobserved movement happened
-last.
-
-Resize observers and preview replacement invalidate geometry and request
-restoration from the retained bookmark. Font loading and content resizing use
-the same path. The preview caches anchor and heading positions between geometry
-changes. Preview scripts remain disabled throughout capture and restoration.
+The preview caches rendered geometry. Rendering, resizing, font readiness,
+and style changes invalidate the cache. CodeMirror measures virtual lines
+before applying source scroll requests. Top and bottom positions remain at
+the corresponding document edge after reflow.
 
 ## Resizable pane layout
 

@@ -192,28 +192,26 @@ invalidation. Run it with the scroll regression tests:
 npm run test:e2e -- e2e/toc.spec.ts e2e/preview-scroll.spec.ts
 ```
 
-## Scroll coordination
+## Reading positions
 
-`app/tests/scroll-coordinator.test.ts` tests navigation order independently of
-browser frames. The tests cover changes of owner, delayed scroll requests,
-layout changes, movement before a scroll event, native bookmark restoration, and
-coordinator disposal.
+`app/tests/reading-position.test.ts` covers tracked source ranges, remote edits,
+undo, and projection to a temporary visible block. `app/tests/source-range.test.ts`
+checks parser source ranges for unfinished blocks, heading markers, attribute
+expansion, and line endings. `app/tests/scroll-coordinator.test.ts` checks
+navigation order and cancellation of obsolete scroll requests.
 
-`e2e/scroll-model.spec.ts` tests both panes with browser layout and scrolling:
+`e2e/reading-position.spec.ts` uses independent browser clients to check remote
+edits and undo while another client reads the preview. Cases include unfinished
+listings, hidden comments, merged paragraphs, heading changes, and unfinished
+tables. Navigation during a temporary state must replace the previous reading
+position. Both panes retain progress in a long final line after remote edits
+above it.
 
-- Progress within wrapped source lines.
-- Divider and window resizing.
-- Documents that gain overflow or overflow only in the preview.
-- Movement in both panes before a layout change.
-
-The timing tests cover movement both before and after the browser delivers the
-corresponding scroll event.
-
-`e2e/reading-position.spec.ts` checks source progress after a remote insertion
-and undo. `app/tests/reading-position.test.ts` checks tracked source ranges and
-projection to temporary display positions.
+`e2e/scroll-model.spec.ts` covers wrapped lines, preview reflow, documents that
+gain overflow, bottom alignment when only the preview overflows, and navigation
+that arrives immediately before a layout change.
 
 ```sh
-npm test -- app/tests/reading-position.test.ts app/tests/scroll-coordinator.test.ts app/tests/scroll-sync.test.ts
+npm test -- app/tests/reading-position.test.ts app/tests/source-range.test.ts app/tests/scroll-coordinator.test.ts
 npm run test:e2e -- e2e/reading-position.spec.ts e2e/scroll-model.spec.ts e2e/preview-scroll.spec.ts e2e/toc.spec.ts
 ```

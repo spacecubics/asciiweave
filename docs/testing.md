@@ -199,9 +199,14 @@ browser frames. The tests cover changes of owner, delayed scroll requests,
 layout changes, movement before a scroll event, native bookmark restoration, and
 coordinator disposal.
 
-`e2e/scroll-model.spec.ts` checks bottom alignment when only the preview
-overflows. It also checks that the source stays at the top when resizing
-introduces overflow.
+`e2e/scroll-model.spec.ts` tests both panes with browser layout and scrolling:
+
+- Divider and window resizing.
+- Documents that gain overflow or overflow only in the preview.
+- Movement in both panes before a layout change.
+
+The timing tests cover movement both before and after the browser delivers the
+corresponding scroll event.
 
 ```sh
 npm test -- app/tests/scroll-coordinator.test.ts app/tests/scroll-sync.test.ts

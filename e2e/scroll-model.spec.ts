@@ -27,6 +27,99 @@ test('a document that gains overflow stays at the top', async ({ page }) => {
   expect((await metrics()).top).toBe(0)
 })
 
+for (const measured of [false, true]) {
+  for (const latest of ['source', 'preview'] as const) {
+    for (const reported of [false, true]) {
+      test(`${reported ? 'reported' : 'unreported'} ${latest} navigation wins before a divider resize with ${measured ? 'measured' : 'estimated'} source heights`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width: 1280, height: 900 })
+        await createDoc(page)
+        const source = Array.from(
+          { length: 60 },
+          (_, i) => `== Topic ${i + 1}\n\nText for topic ${i + 1}.\n`,
+        ).join('\n')
+        await setSourceViaYjs(page, source)
+        const preview = page.frameLocator('.preview-frame')
+        await expect(preview.locator('h2')).toHaveCount(60)
+        await settle(page)
+        let sourceTop = 2200
+        if (measured) {
+          await page.locator('.cm-scroller').evaluate((scroller) => {
+            scroller.scrollTop = 2200
+          })
+          await settle(page)
+          sourceTop = await page.locator('.cm-scroller').evaluate((scroller) => {
+            const line = Array.from(
+              scroller.closest('.cm-editor')!.querySelectorAll('.cm-gutterElement'),
+            ).find((line) => line.textContent === '121')!
+            return (
+              scroller.scrollTop +
+              line.getBoundingClientRect().top -
+              scroller.getBoundingClientRect().top +
+              1
+            )
+          })
+          await page.locator('.cm-scroller').evaluate((scroller) => {
+            scroller.scrollTop = 0
+          })
+          await settle(page)
+        }
+        await page.evaluate(
+          ({ latest, reported, sourceTop }) => {
+            const doc =
+              document.querySelector<HTMLIFrameElement>('.preview-frame')!.contentDocument!
+            const scroller = document.querySelector('.cm-scroller')!
+            const moveSource = () => {
+              scroller.scrollTop = sourceTop
+            }
+            const movePreview = () => {
+              doc.scrollingElement!.scrollTop += doc
+                .getElementById('_topic_10')!
+                .getBoundingClientRect().top
+            }
+            if (latest === 'source') {
+              movePreview()
+              doc.dispatchEvent(new Event('scroll'))
+              moveSource()
+              if (reported) scroller.dispatchEvent(new Event('scroll'))
+            } else {
+              moveSource()
+              scroller.dispatchEvent(new Event('scroll'))
+              movePreview()
+              if (reported) doc.dispatchEvent(new Event('scroll'))
+            }
+            document
+              .querySelector('#pane-resizer')!
+              .dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }))
+          },
+          { latest, reported, sourceTop },
+        )
+        await settle(page)
+        const heading = latest === 'source' ? '_topic_31' : '_topic_10'
+        await expect
+          .poll(() =>
+            preview
+              .locator(`#${heading}`)
+              .evaluate((element) => Math.abs(element.getBoundingClientRect().top)),
+          )
+          .toBeLessThan(!measured && latest === 'source' ? 50 : 2)
+        const targetLine = latest === 'source' ? 121 : 37
+        const firstLine = await page.locator('.cm-scroller').evaluate((scroller) => {
+          const top = scroller.getBoundingClientRect().top
+          return Number(
+            Array.from(scroller.closest('.cm-editor')!.querySelectorAll('.cm-gutterElement')).find(
+              (line) => line.getBoundingClientRect().bottom > top && Number(line.textContent) > 0,
+            )?.textContent,
+          )
+        })
+        // An estimated jump can move by a line while CodeMirror measures it.
+        expect(Math.abs(firstLine - targetLine)).toBeLessThanOrEqual(measured ? 1 : 2)
+      })
+    }
+  }
+}
+
 test('source without overflow does not request preview bottom alignment', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await createDoc(page)

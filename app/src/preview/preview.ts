@@ -52,16 +52,20 @@ export function createPreview(
   container.appendChild(iframe)
   const diagramViewer = createDiagramViewer(() => iframe.focus())
 
-  const toc = createToc(container, (id) => {
-    const target = iframe.contentDocument?.getElementById(id)
-    const scroller = iframe.contentDocument?.scrollingElement
-    if (!target || !scroller) return
-    navigationLine = rendered?.anchors.find((anchor) => anchor.id === id)?.line ?? 1
-    scroller.scrollTop += target.getBoundingClientRect().top
-    observedTop = scroller.scrollTop
-    sync.navigate('preview')
-    updateActiveHeading()
-  })
+  const toc = createToc(
+    container,
+    (id) => {
+      const target = iframe.contentDocument?.getElementById(id)
+      const scroller = iframe.contentDocument?.scrollingElement
+      if (!target || !scroller) return
+      navigationLine = rendered?.anchors.find((anchor) => anchor.id === id)?.line ?? 1
+      scroller.scrollTop += target.getBoundingClientRect().top
+      observedTop = scroller.scrollTop
+      sync.navigate('preview')
+      updateActiveHeading()
+    },
+    sync.changeLayout,
+  )
   let headings: HTMLElement[] = []
   let headingPositions: { id: string; top: number }[] | undefined
   const updateActiveHeading = (): void => {

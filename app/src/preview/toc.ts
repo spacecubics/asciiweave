@@ -5,7 +5,11 @@ export interface TocHeading {
   label: string
 }
 
-export function createToc(container: HTMLElement, navigate: (id: string) => void) {
+export function createToc(
+  container: HTMLElement,
+  navigate: (id: string) => void,
+  changeLayout: (change: () => void) => void,
+) {
   const root = document.createElement('div')
   root.className = 'toc'
   root.hidden = true
@@ -32,9 +36,11 @@ export function createToc(container: HTMLElement, navigate: (id: string) => void
   let marks: HTMLElement[] = []
 
   const open = (value: boolean) => {
-    panel.hidden = !value
-    container.classList.toggle('toc-open', value && !root.hidden)
-    toggle.setAttribute('aria-expanded', String(value))
+    changeLayout(() => {
+      panel.hidden = !value
+      container.classList.toggle('toc-open', value && !root.hidden)
+      toggle.setAttribute('aria-expanded', String(value))
+    })
   }
   const setPinned = (value: boolean) => {
     pinned = value

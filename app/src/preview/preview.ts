@@ -232,6 +232,7 @@ export function createPreview(
     }
 
     currentAnchors ??= rendered.anchors
+      .filter((anchor) => frameDocument.getElementById(anchor.id))
       .map((anchor) => {
         const from = ranges.get(anchor)?.resolve()?.from ?? anchor.from
         return { ...anchor, line: sourceText.lineAt(Math.min(sourceText.length, from)).number }

@@ -209,7 +209,8 @@ tables. Navigation during a temporary state must replace the previous reading
 position. Both panes retain progress in a long final line after remote edits
 above it. Preview navigation follows the complete source extent of lists and
 paragraphs with omitted content. A remote edit that converts a list to a listing
-preserves the reading region. Undo restores the saved reading position.
+preserves the reading region. Undo restores the saved reading position. Source navigation skips anchors
+without a matching HTML element.
 
 `e2e/scroll-model.spec.ts` covers wrapped lines, preview reflow, documents that
 gain overflow, bottom alignment when only the preview overflows, and navigation

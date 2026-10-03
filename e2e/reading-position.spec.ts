@@ -268,6 +268,26 @@ for (const syntax of ['list', 'comments', 'conditional'] as const) {
   })
 }
 
+test('source navigation skips passthrough anchors absent from the preview HTML', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await createDoc(page)
+  const source =
+    '== Start\n\nBefore paragraph.\n\n++++\n' +
+    Array.from({ length: 100 }, (_, index) => `<p>Raw paragraph ${index}.</p>`).join('\n') +
+    '\n++++\n\n== End\n\nEnd.'
+  await setSourceViaYjs(page, source)
+  const preview = page.frameLocator('.preview-frame')
+  await expect(preview.locator('body')).toContainText('Raw paragraph 99.')
+  await settle(page)
+  await page.locator('.cm-scroller').evaluate((scroller) => {
+    scroller.scrollTop = (scroller.scrollHeight - scroller.clientHeight) * 0.5
+  })
+  await settle(page)
+  expect(await preview.locator('html').evaluate((el) => el.scrollTop)).toBeGreaterThan(500)
+})
+
 test('a list retains its reading region when a remote edit turns it into a listing', async ({
   page,
   browser,

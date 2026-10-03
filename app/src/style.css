@@ -38,6 +38,48 @@ body {
   text-decoration: none;
 }
 
+.layout-controls {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.layout-controls button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #d0d7de;
+  background: #fff;
+  color: inherit;
+  cursor: pointer;
+}
+
+.layout-controls button + button {
+  border-left: 0;
+}
+
+.layout-controls button:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.layout-controls button:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.layout-controls button:hover {
+  background: #eaeef2;
+}
+
+.layout-controls button[aria-pressed='true'] {
+  background: #0969da;
+  color: #fff;
+}
+
+.layout-controls button:focus-visible {
+  outline: 2px solid #0969da;
+  outline-offset: 2px;
+  z-index: 1;
+}
+
 .presence {
   display: flex;
   align-items: center;
@@ -297,7 +339,7 @@ body {
     order: 1;
   }
   .presence {
-    flex: 1;
+    flex: 1 1 15rem;
   }
 }
 
@@ -305,6 +347,17 @@ body {
   position: relative;
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
+}
+
+.panes[data-layout='edit'],
+.panes[data-layout='view'] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.panes > [hidden],
+#preview-pane[hidden] {
+  display: none;
 }
 .toc {
   position: relative;

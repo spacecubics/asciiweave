@@ -220,3 +220,18 @@ that arrives immediately before a layout change.
 npm test -- app/tests/reading-position.test.ts app/tests/source-range.test.ts app/tests/scroll-coordinator.test.ts
 npm run test:e2e -- e2e/reading-position.spec.ts e2e/scroll-model.spec.ts e2e/preview-scroll.spec.ts e2e/toc.spec.ts
 ```
+
+## View modes
+
+`app/tests/scroll-coordinator.test.ts` checks hidden-pane navigation, retained
+reading positions, and cancellation of pending scrolls across hide/show cycles.
+`e2e/layout.spec.ts` checks Edit, Both, and View transitions on desktop and
+narrow screens. The browser tests cover selection, undo, the split ratio, and
+keyboard access. They also check scrolling before a mode change, rapid switches,
+wrapped paragraphs, overflow changes, TOC navigation, and remote edits while a
+pane is hidden.
+
+```sh
+npm test -- app/tests/scroll-coordinator.test.ts
+npm run test:e2e -- e2e/layout.spec.ts e2e/scroll-model.spec.ts
+```

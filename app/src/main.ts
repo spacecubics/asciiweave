@@ -90,6 +90,11 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
   container.innerHTML = `
     <header class="topbar">
       <a class="brand" href="/">asciiweave</a>
+      <div class="layout-controls" role="group" aria-label="Editor layout">
+        <button type="button" data-layout="edit" aria-pressed="false" title="Edit only">Edit</button>
+        <button type="button" data-layout="both" aria-pressed="true" title="Edit and view">Both</button>
+        <button type="button" data-layout="view" aria-pressed="false" title="View only">View</button>
+      </div>
       <div class="presence">
         <span id="user-list" class="user-list" aria-label="Connected users"></span>
         <input id="user-name" class="user-name" maxlength="24" aria-label="Your display name" />
@@ -102,7 +107,7 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
       <span id="sync-state" class="sync-state" data-state="connecting">Connecting…</span>
     </header>
     <p id="print-error" class="error print-error" role="alert"></p>
-    <main class="panes">
+    <main class="panes" data-layout="both">
       <section id="source-pane" class="pane" aria-label="AsciiDoc source"></section>
       <div
         id="pane-resizer"
@@ -235,6 +240,23 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
     provider.awareness,
     scrollSync,
   )
+  const layoutButtons = container.querySelectorAll<HTMLButtonElement>('.layout-controls button')
+  for (const button of layoutButtons) {
+    button.addEventListener('click', () => {
+      const layout = button.dataset.layout!
+      if (layout === panes.dataset.layout) return
+      scrollSync.changeLayout(() => {
+        panes.dataset.layout = layout
+        sourcePane.hidden = layout === 'view'
+        previewPane.hidden = layout === 'edit'
+        paneResizer.hidden = layout !== 'both'
+        styleSelect.disabled = layout === 'edit'
+        for (const option of layoutButtons) {
+          option.setAttribute('aria-pressed', String(option === button))
+        }
+      })
+    })
+  }
   preview.renderNow(local.ytext.toString())
   window.__asciiweave = {
     ydoc: local.ydoc,

@@ -108,6 +108,33 @@ export function createPreview(
 
   let positions: { line: number; top: number }[] | undefined
 
+  const capture = () => {
+    const frameDocument = scrollDocument
+    const scroller = frameDocument?.scrollingElement
+    if (!frameDocument || !scroller || !rendered || !iframeLoaded) return
+    updateActiveHeading()
+    positions ??= rendered.anchors.flatMap((anchor) => {
+      const element = frameDocument.getElementById(anchor.id)
+      return element
+        ? [{ line: anchor.line, top: element.getBoundingClientRect().top + scroller.scrollTop }]
+        : []
+    })
+    const line = sourceLineForPosition(positions, scroller.scrollTop)
+    if (line === undefined) return
+    const atEnd =
+      scroller.scrollTop > 0 &&
+      scroller.scrollTop + (iframe.contentWindow?.innerHeight ?? 0) >= scroller.scrollHeight - 1
+    return { line, atEnd }
+  }
+
+  const setTop = (top: number): void => {
+    const scroller = iframe.contentDocument?.scrollingElement
+    if (!scroller) return
+    scroller.scrollTop = top
+    followedTop = scroller.scrollTop
+    updateActiveHeading()
+  }
+
   const previewScrolled = (): void => {
     const top = scrollDocument?.scrollingElement?.scrollTop
     if (top === undefined || (followedTop !== undefined && Math.abs(top - followedTop) < 1)) return
@@ -119,23 +146,11 @@ export function createPreview(
     if (previewFrame !== undefined || disposed) return
     previewFrame = requestAnimationFrame(() => {
       previewFrame = undefined
-      const frameDocument = scrollDocument
-      const scroller = frameDocument?.scrollingElement
-      if (!frameDocument || !scroller || !rendered || !iframeLoaded) return
-      updateActiveHeading()
-      positions ??= rendered.anchors.flatMap((anchor) => {
-        const element = frameDocument.getElementById(anchor.id)
-        return element
-          ? [{ line: anchor.line, top: element.getBoundingClientRect().top + scroller.scrollTop }]
-          : []
-      })
-      const line = sourceLineForPosition(positions, scroller.scrollTop)
-      if (line === undefined) return
-      requestedLine = line
-      requestedEnd =
-        scroller.scrollTop > 0 &&
-        scroller.scrollTop + (iframe.contentWindow?.innerHeight ?? 0) >= scroller.scrollHeight - 1
-      onScroll?.(line, requestedEnd)
+      const position = capture()
+      if (!position) return
+      requestedLine = position.line
+      requestedEnd = position.atEnd
+      onScroll?.(requestedLine, requestedEnd)
     })
   }
 
@@ -175,9 +190,7 @@ export function createPreview(
 
     // Assigning scrollTop is synchronous and ignores CSS smooth-scrolling
     // behavior, so user-authored styles cannot leave animation work queued.
-    scrollingElement.scrollTop = Math.min(Math.max(top, 0), maximum)
-    followedTop = scrollingElement.scrollTop
-    updateActiveHeading()
+    setTop(Math.min(Math.max(top, 0), maximum))
   }
 
   const scheduleFollowSource = (): void => {

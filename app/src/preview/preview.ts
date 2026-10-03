@@ -1,11 +1,17 @@
 import { createToc } from './toc'
 import { blockSourceRange } from './source-range'
 import { Text } from '@codemirror/state'
-import type { SourceRange } from '../scroll/reading-position'
+import type * as Y from 'yjs'
+import {
+  projectRange,
+  trackRange,
+  type SourceRange,
+  type TrackedRange,
+} from '../scroll/reading-position'
 import type { ScrollCoordinator, ScrollRequest, SourcePosition } from '../scroll/coordinator'
 import { load, type AbstractBlock, type Block } from '@asciidoctor/core'
 import { createRenderScheduler, type RenderScheduler } from './scheduler'
-import { sourceLineForPosition, sourceSpanForLine, type SourceAnchor } from './scroll-sync'
+import { sourceSpanForLine, type SourceAnchor } from './scroll-sync'
 import { applyStyle, previewPage } from './page'
 import { defaultStyle, type PreviewStyle } from './styles'
 import { renderD2Blocks, type D2Block } from './d2'
@@ -46,6 +52,7 @@ let renderSequence = 0
 export function createPreview(
   container: HTMLElement,
   sync: ScrollCoordinator,
+  ytext: Y.Text,
   initialStyle = defaultStyle,
 ): Preview {
   const iframe = document.createElement('iframe')
@@ -94,6 +101,9 @@ export function createPreview(
   }
 
   let style = initialStyle
+  let sourceText = Text.of(ytext.toString().split('\n'))
+  let ranges = new Map<SourceAnchor, TrackedRange>()
+  let currentAnchors: SourceAnchor[] | undefined
 
   let rendered: RenderedPreview | undefined
   let iframeLoaded = false
@@ -105,24 +115,85 @@ export function createPreview(
   let navigationLine: number | undefined
   let width = 0
   let height = 0
-  let positions: { line: number; top: number }[] | undefined
+  let positions:
+    | Array<{ line: number; id: string; top: number; height: number; range: TrackedRange }>
+    | undefined
 
-  const capture = () => {
+  const geometry = () => {
     const doc = scrollDocument
     const scroller = doc?.scrollingElement
-    if (!doc || !scroller || !rendered || !iframeLoaded) return undefined
-    positions ??= rendered.anchors.flatMap((anchor) => {
-      const element = doc.getElementById(anchor.id)
-      return element
-        ? [{ line: anchor.line, top: element.getBoundingClientRect().top + scroller.scrollTop }]
-        : []
-    })
+    if (!doc || !scroller || !rendered || !iframeLoaded) return []
+    positions ??= rendered.anchors
+      .flatMap((anchor) => {
+        const element = doc.getElementById(anchor.id)
+        const range = ranges.get(anchor)
+        if (!element || !range) return []
+        const rect = element.getBoundingClientRect()
+        if (rect.height <= 0) return []
+        return [
+          {
+            line: anchor.line,
+            id: anchor.id,
+            range,
+            top: rect.top + scroller.scrollTop,
+            height: rect.height,
+          },
+        ]
+      })
+      .sort((a, b) => a.top - b.top || a.line - b.line)
+    return positions
+  }
+
+  const capture = () => {
+    const scroller = scrollDocument?.scrollingElement
+    const positions = geometry()
+    if (!scroller || !positions.length) return undefined
     const top = scroller.scrollTop
     const atEnd = top > 0 && top + iframe.clientHeight >= scroller.scrollHeight - 1
-    const line = navigationLine ?? sourceLineForPosition(positions, top) ?? 1
-    const position = { line, atEnd: navigationLine === undefined && atEnd }
+    const selected =
+      navigationLine === undefined ? undefined : positions.find((p) => p.line === navigationLine)
+    const unique = positions.filter((p, i) => p.top !== positions[i - 1]?.top)
+    const containing = unique.filter((p) => p.top <= top + 8 && p.top + p.height > top + 8)
+    const before =
+      selected ?? containing.at(-1) ?? unique.filter((p) => p.top <= top).at(-1) ?? positions[0]!
+    const range = before.range
+    const progress = (top - before.top) / Math.max(1, before.height)
+    const navigated = navigationLine !== undefined
     navigationLine = undefined
-    return { position, restore: (current: ScrollRequest) => followSource(position, current) }
+    return {
+      get position() {
+        const resolved = range.resolve()
+        const index = resolved
+          ? resolved.from + (resolved.to - resolved.from) * Math.max(0, Math.min(1, progress))
+          : 0
+        const line = sourceText.lineAt(
+          Math.min(sourceText.length, Math.floor(navigated ? (resolved?.from ?? 0) : index)),
+        ).number
+        return {
+          line: top === 0 || (navigated && resolved?.kind === 'document-title') ? 1 : line,
+          atEnd: !navigated && atEnd,
+        }
+      },
+      restore(current: ScrollRequest) {
+        if (!current() || !iframeLoaded) return
+        if (top === 0) {
+          setTop(0)
+          return
+        }
+        if (atEnd) {
+          setTop(scrollDocument?.scrollingElement?.scrollHeight ?? 0)
+          return
+        }
+        const saved = range.resolve()
+        if (!saved) return
+        const candidates = geometry().flatMap((p) => {
+          const resolved = p.range.resolve()
+          return resolved ? [{ ...p, ...resolved }] : []
+        })
+        const display = projectRange(saved, progress, candidates)
+        if (display) setTop(display.target.top + display.target.height * display.progress)
+      },
+    }
   }
 
   const setTop = (top: number): void => {
@@ -160,7 +231,13 @@ export function createPreview(
       return
     }
 
-    const span = sourceSpanForLine(rendered.anchors, line, atEnd)
+    currentAnchors ??= rendered.anchors
+      .map((anchor) => {
+        const from = ranges.get(anchor)?.resolve()?.from ?? anchor.from
+        return { ...anchor, line: sourceText.lineAt(Math.min(sourceText.length, from)).number }
+      })
+      .sort((a, b) => a.line - b.line)
+    const span = sourceSpanForLine(currentAnchors, line, atEnd)
     const maximum = Math.max(0, scrollingElement.scrollHeight - frameWindow.innerHeight)
     let top = 0
 
@@ -215,6 +292,8 @@ export function createPreview(
     positions = undefined
     headingPositions = undefined
     rendered = preview
+    currentAnchors = undefined
+    ranges = new Map(preview.anchors.map((anchor) => [anchor, trackRange(ytext, anchor)]))
     iframeLoaded = false
     pendingPageLoad = () => {
       pendingPageLoad = undefined
@@ -267,8 +346,15 @@ export function createPreview(
   return {
     ...scheduler,
     update(source) {
+      sourceText = Text.of(source.split('\n'))
+      currentAnchors = undefined
       scheduler.update(source)
       sync.layoutChanged('source')
+    },
+    renderNow(source) {
+      sourceText = Text.of(source.split('\n'))
+      currentAnchors = undefined
+      scheduler.renderNow(source)
     },
     setStyle(nextStyle) {
       style = nextStyle

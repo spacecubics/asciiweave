@@ -139,6 +139,11 @@ export function createEditor(
           view.scrollDOM.removeEventListener('scroll', measuredScroll)
         },
       })),
+      EditorView.updateListener.of((update) => {
+        // CodeMirror can adjust scrollTop while measuring changed line heights.
+        // Record the correction before the scroll handler treats it as navigation.
+        if (update.geometryChanged) observedTop = update.view.scrollDOM.scrollTop
+      }),
       EditorView.scrollHandler.of(applyScroll),
       EditorView.domEventHandlers({
         scroll: scrolled,

@@ -19,6 +19,17 @@ async function sourceProgress(page: Page) {
   })
 }
 
+async function previewProgress(page: Page) {
+  return page
+    .frameLocator('.preview-frame')
+    .locator('.paragraph')
+    .last()
+    .evaluate((paragraph) => {
+      const bounds = paragraph.getBoundingClientRect()
+      return -bounds.top / bounds.height
+    })
+}
+
 for (const placement of ['first', 'last'] as const) {
   test(`source bookmarks retain wrapped progress on the ${placement} line after resizing`, async ({
     page,
@@ -54,6 +65,44 @@ for (const placement of ['first', 'last'] as const) {
     }
   })
 }
+
+test('preview bookmarks retain progress inside the final block across reflow and render replacement', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await createDoc(page)
+  await setSourceViaYjs(
+    page,
+    '== Start\n\n' + 'Long paragraph with words for reading. '.repeat(450),
+  )
+  const paragraph = page.frameLocator('.preview-frame').locator('.paragraph').last()
+  await expect(paragraph).toContainText('Long paragraph')
+  await settle(page)
+  await paragraph.evaluate((element) => {
+    const bounds = element.getBoundingClientRect()
+    document.scrollingElement!.scrollTop += bounds.top + bounds.height * 0.4
+  })
+  await settle(page)
+  expect(await previewProgress(page)).toBeCloseTo(0.4, 2)
+  const selection = await page.evaluate(() => window.__asciiweave!.getSelection())
+  for (const key of ['End', 'Home', 'End']) {
+    await page.getByRole('separator').press(key)
+    await settle(page)
+    expect(await previewProgress(page)).toBeCloseTo(0.4, 2)
+  }
+  for (const width of [1000, 1280]) {
+    await page.setViewportSize({ width, height: 900 })
+    await settle(page)
+    expect(await previewProgress(page)).toBeCloseTo(0.4, 2)
+  }
+  await page.evaluate(() =>
+    window.__asciiweave!.ytext.insert(window.__asciiweave!.ytext.length, ' Added text.'),
+  )
+  await expect(paragraph).toContainText('Added text.')
+  await settle(page)
+  expect(await previewProgress(page)).toBeCloseTo(0.4, 2)
+  expect(await page.evaluate(() => window.__asciiweave!.getSelection())).toEqual(selection)
+})
 
 test('a document that gains overflow stays at the top', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })

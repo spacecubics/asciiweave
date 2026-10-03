@@ -274,10 +274,14 @@ export function createPreview(
   }
 
   sync.attach('preview', {
+    isVisible: () => !container.hidden,
     capture,
     follow: followSource,
     poll: previewScrolled,
-    refresh: updateActiveHeading,
+    refresh() {
+      if (iframe.clientWidth !== width || iframe.clientHeight !== height) layoutChanged()
+      updateActiveHeading()
+    },
   })
 
   const loadPage = (preview: RenderedPreview): void => {

@@ -495,6 +495,17 @@ Each scheduled scroll checks that its request is still current. Panes record
 the offsets they apply to suppress scroll-event feedback. Divider, TOC, and
 style changes capture pending navigation before changing the layout.
 
+The coordinator polls visible panes for pending navigation before a layout
+change. Hiding the controlling pane retains its tracked reading position until
+a visible pane reports navigation. Hidden panes cannot take scroll control or
+receive coordinator scroll requests. Each layout change invalidates outstanding
+requests, including a hide/show cycle that finishes before the next frame.
+Revealing a pane restores the current reading position after layout measurement.
+The preview refreshes its geometry before
+restoration. The editor records its current offset before requesting a scroll.
+The reveal event therefore cannot replace the saved position with the editor's
+old offset. User input can cancel a pending request.
+
 The preview caches rendered geometry. Rendering, resizing, font readiness,
 and style changes invalidate the cache. CodeMirror measures virtual lines
 before applying source scroll requests. Source-to-preview scrolling uses only

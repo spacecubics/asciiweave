@@ -48,6 +48,8 @@ export function createEditor(
   let height = 0
   let pending: { position: SourcePosition; current: ScrollRequest } | undefined
   const follow = (position: SourcePosition, current: ScrollRequest): void => {
+    // Revealing the editor can restore its old offset before emitting a scroll.
+    observedTop = view.scrollDOM.scrollTop
     pending = { position, current }
     const line = Math.max(1, Math.min(Math.floor(position.line), view.state.doc.lines))
     view.dispatch({ effects: EditorView.scrollIntoView(view.state.doc.line(line).from) })
@@ -163,6 +165,7 @@ export function createEditor(
   // Height corrections finish after the navigation handler above.
   view.scrollDOM.addEventListener('scroll', measuredScroll)
   sync.attach('source', {
+    isVisible: () => !container.hidden,
     poll: scrolled,
     follow,
     capture,

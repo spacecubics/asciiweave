@@ -515,11 +515,15 @@ Top and bottom positions remain at the corresponding document edge after reflow.
 
 ## Resizable pane layout
 
-The editor layout uses three CSS Grid tracks: source, separator, and preview.
+Both mode uses three CSS Grid tracks: source, separator, and preview.
 The separator adjusts fractional shares between 20% and 80%, keeping both panes
 available while the viewport changes size. At the existing 800 px responsive
 breakpoint, the same shares switch from columns to rows and the separator's
 pointer and keyboard axis changes with them.
+
+Edit and View use a single track and hide the separator. Each browser keeps its
+own mode in the page DOM. Switching modes retains the same editor and preview
+instances, including the live Yjs document and undo manager.
 
 ## Serving model
 

@@ -15,6 +15,11 @@ and commands belong in [`testing.md`](testing.md).
   undo/redo, line wrapping, resizing, Unicode, and Japanese text.
 - Source text is preserved exactly.
 - The split source/preview layout remains usable on desktop and narrow screens.
+- The layout control offers Edit, Both, and View in that order. Documents open
+  with Both selected. Edit or View gives the selected pane the full workspace.
+- Switching modes preserves document content, selection, undo history, and the
+  split ratio. Each browser selects its own mode. Collaboration and preview
+  rendering continue while a pane is hidden.
 - The separator resizes the source and preview with pointer or keyboard input,
   preserves a usable minimum for both panes, and adapts to the layout direction.
 - `GET /api/documents/<id>/source` exports current source as a `.adoc` file.
@@ -91,6 +96,8 @@ and commands belong in [`testing.md`](testing.md).
 - Asciidoctor remains the default. Invalid or removed saved style IDs fall back to
   Asciidoctor. Storage failures do not prevent editing or style selection.
 - Selection is a browser-local preference, separate from source and Awareness.
+- Edit mode disables the Preview style selector. Switching modes preserves the
+  selected style.
 - Switching styles preserves the content, source anchors, source scroll
   correspondence, undo history, and plain-source export.
 - Print / Save as PDF prepares the latest source and selected style as a fixed

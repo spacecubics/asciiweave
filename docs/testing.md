@@ -191,3 +191,14 @@ invalidation. Run it with the scroll regression tests:
 ```sh
 npm run test:e2e -- e2e/toc.spec.ts e2e/preview-scroll.spec.ts
 ```
+
+## Scroll coordination
+
+`app/tests/scroll-coordinator.test.ts` tests navigation order independently of
+browser frames. The tests cover changes of owner, delayed scroll requests,
+layout changes, movement before a scroll event, native bookmark restoration, and
+coordinator disposal.
+
+```sh
+npm test -- app/tests/scroll-coordinator.test.ts app/tests/scroll-sync.test.ts
+```

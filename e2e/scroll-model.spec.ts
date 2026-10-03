@@ -9,6 +9,52 @@ async function settle(page: Page) {
   })
 }
 
+async function sourceProgress(page: Page) {
+  return page.locator('.cm-scroller').evaluate((scroller) => {
+    const paragraph = Array.from(scroller.querySelectorAll('.cm-line')).find((line) =>
+      line.textContent?.startsWith('Long paragraph'),
+    )!
+    const bounds = paragraph.getBoundingClientRect()
+    return (scroller.getBoundingClientRect().top - bounds.top) / bounds.height
+  })
+}
+
+for (const placement of ['first', 'last'] as const) {
+  test(`source bookmarks retain wrapped progress on the ${placement} line after resizing`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await createDoc(page)
+    const paragraph = 'Long paragraph with enough words to fill many visual rows. '.repeat(300)
+    const source =
+      placement === 'first' ? paragraph + '\n\n== End\n\nEnding.' : '== Start\n\n' + paragraph
+    await setSourceViaYjs(page, source)
+    await expect(page.frameLocator('.preview-frame').locator('body')).toContainText(
+      'Long paragraph',
+    )
+    await settle(page)
+    await page.locator('.cm-scroller').evaluate((scroller) => {
+      const paragraph = Array.from(scroller.querySelectorAll('.cm-line')).find((line) =>
+        line.textContent?.startsWith('Long paragraph'),
+      )!
+      const bounds = paragraph.getBoundingClientRect()
+      scroller.scrollTop += bounds.top - scroller.getBoundingClientRect().top + bounds.height * 0.4
+    })
+    await settle(page)
+    expect(await sourceProgress(page)).toBeCloseTo(0.4, 2)
+    for (const key of ['Home', 'End', 'Home']) {
+      await page.getByRole('separator').press(key)
+      await settle(page)
+      expect(await sourceProgress(page)).toBeCloseTo(0.4, 2)
+    }
+    for (const width of [1000, 1280]) {
+      await page.setViewportSize({ width, height: 900 })
+      await settle(page)
+      expect(await sourceProgress(page)).toBeCloseTo(0.4, 2)
+    }
+  })
+}
+
 test('a document that gains overflow stays at the top', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   await createDoc(page)

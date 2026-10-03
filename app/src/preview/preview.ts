@@ -263,6 +263,10 @@ export function createPreview(
 
   return {
     ...scheduler,
+    update(source) {
+      scheduler.update(source)
+      sync.layoutChanged('source')
+    },
     setStyle(nextStyle) {
       style = nextStyle
       if (iframeLoaded && iframe.contentDocument) {

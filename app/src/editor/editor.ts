@@ -17,16 +17,17 @@ import {
 import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next'
 import type { Awareness } from 'y-protocols/awareness'
 import type * as Y from 'yjs'
+import { trackRange } from '../scroll/reading-position'
 import type { ScrollCoordinator, ScrollRequest, SourcePosition } from '../scroll/coordinator'
 
 function editorTopForLine(view: EditorView, line: number, atEnd: boolean): number {
-  const clamped = Math.max(1, Math.min(line, view.state.doc.lines))
-  const block = view.lineBlockAt(view.state.doc.line(Math.floor(clamped)).from)
+  const number = Math.max(1, Math.min(Math.floor(line), view.state.doc.lines))
+  const block = view.lineBlockAt(view.state.doc.line(number).from)
   const top = atEnd
     ? view.scrollDOM.scrollHeight
-    : clamped === 1
+    : line === 1
       ? 0
-      : view.documentPadding.top + block.top + block.height * (clamped % 1)
+      : view.documentPadding.top + block.top + block.height * (line % 1)
   return Math.max(0, Math.min(top, view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight))
 }
 
@@ -79,17 +80,27 @@ export function createEditor(
   const capture = () => {
     // Measuring virtual lines can correct scrollTop before the bookmark read.
     view.lineBlockAt(0)
+    const atStart = view.scrollDOM.scrollTop === 0
     const top = view.scrollDOM.scrollTop - view.documentPadding.top
     const block = view.lineBlockAtHeight(top)
     const number = view.state.doc.lineAt(block.from).number
+    const progress = Math.max(0, Math.min((top - block.top) / block.height, 1))
     const atEnd =
       view.scrollDOM.scrollTop > 0 &&
       view.scrollDOM.scrollTop + view.scrollDOM.clientHeight >= view.scrollDOM.scrollHeight - 1
-    const position = { line: number, atEnd }
+    const line = view.state.doc.line(number)
+    const range = trackRange(ytext, { from: line.from, to: line.to, kind: 'source-line' })
+    const currentLine = () =>
+      atStart
+        ? 1
+        : view.state.doc.lineAt(Math.min(range.resolve()?.from ?? 0, view.state.doc.length)).number
     observedTop = view.scrollDOM.scrollTop
     return {
-      position,
-      restore: (current: ScrollRequest) => follow(position, current),
+      get position() {
+        return { line: currentLine(), atEnd }
+      },
+      restore: (current: ScrollRequest) =>
+        follow({ line: currentLine() + progress, atEnd }, current),
     }
   }
   const applyScroll = (view: EditorView): boolean => {

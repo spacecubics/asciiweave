@@ -52,7 +52,9 @@ and commands belong in [`testing.md`](testing.md).
 - The pane with the latest observed navigation controls where the other pane
   scrolls. Deferred movement from an older navigation must not override a newer
   position.
-- A document at the top remains at the top when resizing introduces overflow.
+- Resizing preserves progress within the source pane's wrapped line when the
+  source pane controls scrolling, including the final line. A document at the
+  top remains at the top when resizing introduces overflow.
 - Treat rendered document content as untrusted. Keep it in a sandboxed iframe
   with `allow-same-origin` only so the parent can synchronize its scroll
   position. Keep scripts disabled by both the sandbox and a restrictive

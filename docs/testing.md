@@ -201,6 +201,7 @@ coordinator disposal.
 
 `e2e/scroll-model.spec.ts` tests both panes with browser layout and scrolling:
 
+- Progress within wrapped source lines.
 - Divider and window resizing.
 - Documents that gain overflow or overflow only in the preview.
 - Movement in both panes before a layout change.
@@ -208,7 +209,11 @@ coordinator disposal.
 The timing tests cover movement both before and after the browser delivers the
 corresponding scroll event.
 
+`e2e/reading-position.spec.ts` checks source progress after a remote insertion
+and undo. `app/tests/reading-position.test.ts` checks tracked source ranges and
+projection to temporary display positions.
+
 ```sh
-npm test -- app/tests/scroll-coordinator.test.ts app/tests/scroll-sync.test.ts
-npm run test:e2e -- e2e/scroll-model.spec.ts e2e/preview-scroll.spec.ts e2e/toc.spec.ts
+npm test -- app/tests/reading-position.test.ts app/tests/scroll-coordinator.test.ts app/tests/scroll-sync.test.ts
+npm run test:e2e -- e2e/reading-position.spec.ts e2e/scroll-model.spec.ts e2e/preview-scroll.spec.ts e2e/toc.spec.ts
 ```

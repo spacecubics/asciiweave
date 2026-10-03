@@ -467,9 +467,16 @@ coordinator batches scroll requests and heading updates into one animation frame
 A deferred scroll request applies only if its navigation revision is current.
 The request must also be the latest request for its destination pane.
 
-Each pane captures its position as a source line and an end-alignment flag.
-The coordinator retains this bookmark to restore the owner after layout changes.
-The other pane follows the same source-line position.
+The source pane captures two representations of its position. A source-line
+position approximates where the preview should scroll. A native bookmark records
+a source range tracked by Yjs and proportional progress through its wrapped
+rows. The source pane resolves this range after edits and restores its progress
+after reflow. Edits that delete the anchored content can collapse the range to
+a nearby source boundary.
+
+The preview captures its position as a source line and an end-alignment flag.
+The coordinator retains this bookmark to restore the preview after layout changes.
+The source pane follows the same source-line position.
 
 A pane at the bottom with a positive scroll offset requests alignment with the
 document end. A document that fits entirely retains its top position when
@@ -478,8 +485,8 @@ resizing introduces overflow.
 Asciidoctor source maps associate rendered blocks and table rows with source
 lines. Cross-pane following interpolates between those anchors. The mapping is
 approximate: AsciiDoc syntax, nested blocks, and wrapped text do not have a
-one-to-one visual correspondence. Restoring a pane from a source-line position
-also loses progress within a wrapped line or rendered block.
+one-to-one visual correspondence. Restoring the preview from a source-line
+position also loses progress within a rendered block.
 
 Each pane's adapter remembers the latest observed scroll offset, including
 offsets set by code. The adapter ignores repeated scroll events at that offset.

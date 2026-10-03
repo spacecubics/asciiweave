@@ -455,25 +455,46 @@ the iframe document; application UI CSS is kept separate. Conversion runs
 with Asciidoctor's default `secure` safe mode, so `include::` does not read
 files.
 
-Asciidoctor source maps provide line numbers for rendered blocks and table
-rows. Source scrolling finds the surrounding anchors and interpolates their
-document positions. Events are coalesced to one update per animation frame,
-and each update reads the latest requested line, so a rapid direction change
-cannot leave an older movement queued. Preview content and iframe resize
-events reapply the current source position after layout changes.
+### Scroll ownership and bookmarks
 
-The parent also observes preview document scroll events with scripts still
-disabled. It maps rendered block positions back to source lines, interpolating
-between blocks, and follows those lines in CodeMirror without moving selection
-or focus. Rendered positions are cached so scrolling does not repeat DOM
-lookups and geometry reads for every anchor. The existing mapping function
-still sorts and scans those positions on each scroll. Rendering, content or
-iframe resizing, font readiness, and style changes invalidate this snapshot;
-the next preview scroll rebuilds it. At the preview bottom, the source follows to its own bottom.
-Both directions remember the actual scroll position they set and ignore its
-scroll-event echo. A different position takes over immediately and cancels any
-pending movement in the opposite direction. Preview events are coalesced per
-animation frame, and listeners are replaced on render and removed on disposal.
+The pane with the latest observed navigation controls where the other pane
+scrolls. `app/src/scroll/coordinator.ts` tracks this pane as the scroll owner.
+Layout changes preserve ownership.
+
+Each observed navigation increments a revision counter. The owner captures its
+position immediately, before a later resize can change the coordinates. The
+coordinator batches scroll requests and heading updates into one animation frame.
+A deferred scroll request applies only if its navigation revision is current.
+The request must also be the latest request for its destination pane.
+
+Each pane captures its position as a source line and an end-alignment flag.
+The coordinator retains this bookmark to restore the owner after layout changes.
+The other pane follows the same source-line position.
+
+A pane at the bottom with a positive scroll offset requests alignment with the
+document end. A document that fits entirely retains its top position when
+resizing introduces overflow.
+
+Asciidoctor source maps associate rendered blocks and table rows with source
+lines. Cross-pane following interpolates between those anchors. The mapping is
+approximate: AsciiDoc syntax, nested blocks, and wrapped text do not have a
+one-to-one visual correspondence. Restoring a pane from a source-line position
+also loses progress within a wrapped line or rendered block.
+
+Each pane's adapter remembers the latest observed scroll offset, including
+offsets set by code. The adapter ignores repeated scroll events at that offset.
+The source adapter records navigation before CodeMirror applies a pending scroll
+request. After CodeMirror corrects virtual line heights, the adapter records the
+resulting offset without treating the correction as navigation.
+
+Source scroll requests use CodeMirror's scroll effect and handler to apply the
+destination after measurement. These requests preserve selection and focus.
+The handler consumes obsolete requests without scrolling.
+
+Resize observers and preview replacement invalidate geometry and request
+restoration from the retained bookmark. Font loading and content resizing use
+the same path. The preview caches anchor and heading positions between geometry
+changes. Preview scripts remain disabled throughout capture and restoration.
 
 ## Resizable pane layout
 

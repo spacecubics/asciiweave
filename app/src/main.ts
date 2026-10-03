@@ -10,7 +10,8 @@ import {
 import { connectCollaboration } from './collaboration/provider'
 import { createDocument, fetchDocument } from './documents/api'
 import { createLocalDocument, type LocalDocument } from './documents/ydoc'
-import { createEditor, scrollEditorToLine } from './editor/editor'
+import { createEditor } from './editor/editor'
+import { createScrollCoordinator } from './scroll/coordinator'
 import { createPaneResizer } from './layout/pane-resizer'
 import { createPreview } from './preview/preview'
 import { previewStyles, resolveStyle, STYLE_KEY } from './preview/styles'
@@ -138,13 +139,12 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
     return
   }
 
+  const scrollSync = createScrollCoordinator()
   createPaneResizer(panes, paneResizer)
   let style = resolveStyle(browserPreferences.getItem(STYLE_KEY))
   styleSelect.replaceChildren(...previewStyles.map((entry) => new Option(entry.name, entry.id)))
   styleSelect.value = style.id
-  const preview = createPreview(previewPane, style, (line, atEnd) =>
-    scrollEditorToLine(editor, line, atEnd),
-  )
+  const preview = createPreview(previewPane, scrollSync, style)
   styleSelect.addEventListener('change', () => {
     style = resolveStyle(styleSelect.value)
     preview.setStyle(style)
@@ -233,7 +233,7 @@ async function showEditor(container: HTMLElement, id: string): Promise<void> {
     local.ytext,
     local.undoManager,
     provider.awareness,
-    (line, atEnd) => preview.scrollToSourceLine(line, atEnd),
+    scrollSync,
   )
   preview.renderNow(local.ytext.toString())
   window.__asciiweave = {

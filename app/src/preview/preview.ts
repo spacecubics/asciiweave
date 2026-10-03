@@ -1,4 +1,5 @@
 import { createToc } from './toc'
+import type { ScrollCoordinator, ScrollRequest, SourcePosition } from '../scroll/coordinator'
 import { load, type AbstractBlock, type Block } from '@asciidoctor/core'
 import { createRenderScheduler, type RenderScheduler } from './scheduler'
 import { sourceLineForPosition, sourceSpanForLine, type SourceAnchor } from './scroll-sync'
@@ -32,8 +33,6 @@ interface TableRowTargets {
 
 export interface Preview extends RenderScheduler {
   setStyle(style: PreviewStyle): void
-  /** Follow the first visible source line in the rendered preview. */
-  scrollToSourceLine(line: number, atEnd: boolean): void
 }
 
 let renderSequence = 0
@@ -43,8 +42,8 @@ let renderSequence = 0
 // nested frames, plugins, and form submissions are blocked as well.
 export function createPreview(
   container: HTMLElement,
+  sync: ScrollCoordinator,
   initialStyle = defaultStyle,
-  onScroll?: (line: number, atEnd: boolean) => void,
 ): Preview {
   const iframe = document.createElement('iframe')
   iframe.className = 'preview-frame'
@@ -57,15 +56,10 @@ export function createPreview(
     const target = iframe.contentDocument?.getElementById(id)
     const scroller = iframe.contentDocument?.scrollingElement
     if (!target || !scroller) return
-    if (followFrame !== undefined) cancelAnimationFrame(followFrame)
-    followFrame = undefined
-    if (previewFrame !== undefined) cancelAnimationFrame(previewFrame)
-    previewFrame = undefined
-    requestedLine = rendered?.anchors.find((anchor) => anchor.id === id)?.line ?? 1
-    requestedEnd = false
+    navigationLine = rendered?.anchors.find((anchor) => anchor.id === id)?.line ?? 1
     scroller.scrollTop += target.getBoundingClientRect().top
-    followedTop = scroller.scrollTop
-    onScroll?.(requestedLine, false)
+    observedTop = scroller.scrollTop
+    sync.navigate('preview')
     updateActiveHeading()
   })
   let headings: HTMLElement[] = []
@@ -96,66 +90,59 @@ export function createPreview(
 
   let rendered: RenderedPreview | undefined
   let iframeLoaded = false
-  let requestedLine = 1
-  let requestedEnd = false
   let disposed = false
-  let followFrame: number | undefined
   let pendingPageLoad: (() => void) | undefined
   let contentObserver: ResizeObserver | undefined
   let scrollDocument: Document | undefined
-  let followedTop: number | undefined
-  let previewFrame: number | undefined
-
+  let observedTop = 0
+  let navigationLine: number | undefined
+  let width = 0
+  let height = 0
   let positions: { line: number; top: number }[] | undefined
 
   const capture = () => {
-    const frameDocument = scrollDocument
-    const scroller = frameDocument?.scrollingElement
-    if (!frameDocument || !scroller || !rendered || !iframeLoaded) return
-    updateActiveHeading()
+    const doc = scrollDocument
+    const scroller = doc?.scrollingElement
+    if (!doc || !scroller || !rendered || !iframeLoaded) return undefined
     positions ??= rendered.anchors.flatMap((anchor) => {
-      const element = frameDocument.getElementById(anchor.id)
+      const element = doc.getElementById(anchor.id)
       return element
         ? [{ line: anchor.line, top: element.getBoundingClientRect().top + scroller.scrollTop }]
         : []
     })
-    const line = sourceLineForPosition(positions, scroller.scrollTop)
-    if (line === undefined) return
-    const atEnd =
-      scroller.scrollTop > 0 &&
-      scroller.scrollTop + (iframe.contentWindow?.innerHeight ?? 0) >= scroller.scrollHeight - 1
-    return { line, atEnd }
+    const top = scroller.scrollTop
+    const atEnd = top > 0 && top + iframe.clientHeight >= scroller.scrollHeight - 1
+    const line = navigationLine ?? sourceLineForPosition(positions, top) ?? 1
+    const position = { line, atEnd: navigationLine === undefined && atEnd }
+    navigationLine = undefined
+    return { position, restore: (current: ScrollRequest) => followSource(position, current) }
   }
 
   const setTop = (top: number): void => {
-    const scroller = iframe.contentDocument?.scrollingElement
+    const scroller = scrollDocument?.scrollingElement
     if (!scroller) return
-    scroller.scrollTop = top
-    followedTop = scroller.scrollTop
+    scroller.scrollTop = Math.max(0, Math.min(top, scroller.scrollHeight - iframe.clientHeight))
+    observedTop = scroller.scrollTop
     updateActiveHeading()
   }
 
   const previewScrolled = (): void => {
-    const top = scrollDocument?.scrollingElement?.scrollTop
-    if (top === undefined || (followedTop !== undefined && Math.abs(top - followedTop) < 1)) return
-    followedTop = undefined
-    if (followFrame !== undefined) {
-      cancelAnimationFrame(followFrame)
-      followFrame = undefined
+    const scroller = scrollDocument?.scrollingElement
+    if (!scroller || !iframeLoaded || disposed) return
+    const top = scroller.scrollTop
+    if (iframe.clientWidth !== width || iframe.clientHeight !== height) {
+      layoutChanged()
+      observedTop = top
+      return
     }
-    if (previewFrame !== undefined || disposed) return
-    previewFrame = requestAnimationFrame(() => {
-      previewFrame = undefined
-      const position = capture()
-      if (!position) return
-      requestedLine = position.line
-      requestedEnd = position.atEnd
-      onScroll?.(requestedLine, requestedEnd)
-    })
+    if (Math.abs(top - observedTop) < 1) return
+    observedTop = top
+    navigationLine = undefined
+    sync.navigate('preview')
   }
 
-  const followSource = (line: number, atEnd: boolean): void => {
-    if (!rendered || !iframeLoaded) {
+  const followSource = ({ line, atEnd }: SourcePosition, current: ScrollRequest): void => {
+    if (!current() || !rendered || !iframeLoaded) {
       return
     }
 
@@ -193,24 +180,20 @@ export function createPreview(
     setTop(Math.min(Math.max(top, 0), maximum))
   }
 
-  const scheduleFollowSource = (): void => {
-    if (disposed || followFrame !== undefined) {
-      return
-    }
-
-    // Mouse-wheel and scrollbar events can arrive faster than a paint. Apply
-    // only the newest source position once per frame, without queued motion.
-    followFrame = requestAnimationFrame(() => {
-      followFrame = undefined
-      followSource(requestedLine, requestedEnd)
-    })
-  }
-
   const layoutChanged = (): void => {
+    width = iframe.clientWidth
+    height = iframe.clientHeight
     positions = undefined
     headingPositions = undefined
-    scheduleFollowSource()
+    sync.layoutChanged('preview')
   }
+
+  sync.attach('preview', {
+    capture,
+    follow: followSource,
+    poll: previewScrolled,
+    refresh: updateActiveHeading,
+  })
 
   const loadPage = (preview: RenderedPreview): void => {
     diagramViewer.detach()
@@ -220,11 +203,7 @@ export function createPreview(
     contentObserver?.disconnect()
     scrollDocument?.removeEventListener('scroll', previewScrolled)
     scrollDocument = undefined
-    followedTop = undefined
-    if (previewFrame !== undefined) {
-      cancelAnimationFrame(previewFrame)
-      previewFrame = undefined
-    }
+    observedTop = 0
 
     positions = undefined
     headingPositions = undefined
@@ -253,7 +232,7 @@ export function createPreview(
         applyStyle(iframe.contentDocument, style, rendered?.language)
         void iframe.contentDocument.fonts.ready.then(layoutChanged)
       }
-      followSource(requestedLine, requestedEnd)
+      layoutChanged()
 
       const body = iframe.contentDocument?.body
       if (body) {
@@ -288,30 +267,17 @@ export function createPreview(
       }
       layoutChanged()
     },
-    scrollToSourceLine(line, atEnd) {
-      if (previewFrame !== undefined) {
-        cancelAnimationFrame(previewFrame)
-        previewFrame = undefined
-      }
-      requestedLine = line
-      requestedEnd = atEnd
-      scheduleFollowSource()
-    },
     dispose() {
       disposed = true
       scheduler.dispose()
       toc.dispose()
       diagramViewer.dispose()
-      if (followFrame !== undefined) {
-        cancelAnimationFrame(followFrame)
-      }
       if (pendingPageLoad) {
         iframe.removeEventListener('load', pendingPageLoad)
       }
       iframeObserver.disconnect()
       contentObserver?.disconnect()
       scrollDocument?.removeEventListener('scroll', previewScrolled)
-      if (previewFrame !== undefined) cancelAnimationFrame(previewFrame)
     },
   }
 }

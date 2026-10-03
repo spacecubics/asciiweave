@@ -1,35 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
-import { createDoc, replaceSource } from './helpers'
+import { createDoc, replaceSource, scrollSourceToLine } from './helpers'
 
 const DOC_URL = /\/doc\/[A-Za-z0-9_-]+$/
-
-async function scrollSourceToLine(page: Page, line: number): Promise<void> {
-  await page.locator('.cm-scroller').evaluate(async (scroller, targetLine) => {
-    const content = scroller.querySelector<HTMLElement>('.cm-content')
-    const renderedLine = content?.querySelector<HTMLElement>('.cm-line')
-    if (!content || !renderedLine) {
-      throw new Error('missing rendered CodeMirror line')
-    }
-
-    const lineHeight = renderedLine.getBoundingClientRect().height
-    const paddingTop = Number.parseFloat(getComputedStyle(content).paddingTop)
-    scroller.scrollTop = paddingTop + (targetLine - 1) * lineHeight
-    scroller.dispatchEvent(new Event('scroll'))
-    await new Promise(requestAnimationFrame)
-
-    // Fractional line heights accumulate error over a long document. Once
-    // CodeMirror has rendered the target, align its gutter line exactly.
-    const gutterLine = Array.from(
-      scroller.closest('.cm-editor')!.querySelectorAll<HTMLElement>('.cm-gutterElement'),
-    ).find((element) => element.textContent === String(targetLine))
-    if (!gutterLine) {
-      throw new Error('missing target CodeMirror gutter line')
-    }
-    scroller.scrollTop +=
-      gutterLine.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 1
-    scroller.dispatchEvent(new Event('scroll'))
-  }, line)
-}
 
 // There is no client-side save anymore: edits reach the server through
 // the collaboration socket and the API serves source derived from the
